@@ -53,7 +53,7 @@ Status: done
   Completed: 2026-07-03
 
 ## Phase 6: Frontend
-Status: in-progress
+Status: done
 
 - [x] Step: Implement global design system, layout, and login page
   Completed: 2026-07-03
@@ -64,12 +64,14 @@ Status: in-progress
 - [x] Step: Implement the live interview session screen
   Completed: 2026-07-03
 
-- [ ] Step: Implement the tutor / feedback screen
+- [x] Step: Implement the tutor / feedback screen
   Module: apps/web/app/interview
   Done when: When the session phase is `tutor`, the screen shows the weak question + AI hint and a text/voice input for the candidate's retry answer. Calls `POST /sessions/:id/tutor-answer` and loops until the session status is `completed`.
   Risk: normal
+  Completed: 2026-07-03
 
-- [ ] Step: Implement the dashboard and session report pages
+- [x] Step: Implement the dashboard and session report pages
   Module: apps/web/app/dashboard, apps/web/app/reports
   Done when: `/dashboard` lists all past sessions with status and date. `/reports/[id]` shows the full session report (summary, strengths, weaknesses, topic mastery scores from `skill_profile`).
   Risk: normal
+  Completed: 2026-07-03

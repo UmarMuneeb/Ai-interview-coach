@@ -63,6 +63,11 @@ export class SessionsController {
     return this.sessionsService.submitAnswer(sessionId, question, body.transcript);
   }
 
+  @Get(':id/tutor-state')
+  async getTutorState(@Param('id') sessionId: string) {
+    return this.sessionsService.getTutorState(sessionId);
+  }
+
   @Post(':id/transition')
   async transitionToTutor(@Param('id') sessionId: string) {
     return this.sessionsService.transitionToTutorPhase(sessionId);
@@ -74,5 +79,15 @@ export class SessionsController {
       throw new BadRequestException('questionId and transcript are required');
     }
     return this.sessionsService.submitTutorAnswer(sessionId, body.questionId, body.transcript);
+  }
+
+  @Get()
+  async listSessions(@Request() req: any) {
+    return this.sessionsService.listUserSessions(req.user.userId);
+  }
+
+  @Get(':id/report')
+  async getSessionReport(@Param('id') sessionId: string) {
+    return this.sessionsService.getSessionReport(sessionId);
   }
 }
