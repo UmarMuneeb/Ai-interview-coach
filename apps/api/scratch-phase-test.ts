@@ -62,8 +62,8 @@ async function runTests() {
     const correctAnswer = "I would use a closure by returning an inner function from an outer function, which allows the inner function to access variables from the outer function's scope even after it has returned. Closures are created every time a function is created.";
     const sessionAnswer = await sessionsService.submitAnswer(session.id, mockQ, correctAnswer);
     assert(
-      ['correct', 'incorrect', 'partial', 'misunderstood', 'evasive'].includes(sessionAnswer.classification),
-      `SessionsService links the assessed classification correctly. Classification: ${sessionAnswer.classification}`
+      ['correct', 'incorrect', 'partial', 'misunderstood', 'evasive'].includes(sessionAnswer.answer.classification),
+      `SessionsService links the assessed classification correctly. Classification: ${sessionAnswer.answer.classification}`
     );
     
     // Check Skill Profile side effect

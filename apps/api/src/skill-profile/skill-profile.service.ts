@@ -38,6 +38,11 @@ export class SkillProfileService {
     } else {
         updates.mastery_score = Math.max(0.0, profile.mastery_score - 0.5);
     }
+
+    if (updates.mastery_score < 4.0) updates.current_difficulty = 1;
+    else if (updates.mastery_score < 7.0) updates.current_difficulty = 2;
+    else updates.current_difficulty = 3;
+
     updates.last_seen_at = new Date();
 
     return this.prisma.skillProfile.update({

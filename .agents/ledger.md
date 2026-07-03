@@ -41,7 +41,5 @@ Status: in-progress
 - [x] Step: Implement audio streaming interface in ProviderRouterModule
   Completed: 2026-07-03
 
-- [ ] Step: Implement adaptive difficulty and session pacing
-  Module: sessions
-  Done when: `submitAnswer` updates `current_difficulty` dynamically based on recent classifications, and uses it to fetch the appropriately difficult next question.
-  Risk: normal
+- [x] Step: Implement adaptive difficulty and session pacing
+  Completed: 2026-07-03

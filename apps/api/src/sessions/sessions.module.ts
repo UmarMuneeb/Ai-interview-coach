@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { SkillProfileModule } from '../skill-profile/skill-profile.module';
 import { AssessmentModule } from '../assessment/assessment.module';
+import { QuestionsModule } from '../questions/questions.module';
 
 @Module({
-  imports: [SkillProfileModule, AssessmentModule],
+  imports: [SkillProfileModule, AssessmentModule, QuestionsModule],
   providers: [SessionsService],
   exports: [SessionsService],
 })

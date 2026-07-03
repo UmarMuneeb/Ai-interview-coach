@@ -103,3 +103,14 @@ This document serves as a record of completed work. It is appending-only so we d
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 4 ProviderRouter Live Stream item as `[x]` done.
+
+### 3. Adaptive Difficulty and Session Pacing (Phase 4 Final Step)
+- Edited `SkillProfileService` to dynamically update `current_difficulty` (1, 2, or 3) inside `updateSkillProfile` based on the candidate's aggregated `mastery_score`.
+- Imported `QuestionsModule` into `SessionsModule` and injected `QuestionsService` into `SessionsService`.
+- Modified the `submitAnswer` method to extract the updated `current_difficulty` from the evaluated `SkillProfile`, and immediately call `questionsService.getMockQuestion()` to fetch the next appropriately difficult question.
+- Updated the return signature of `submitAnswer` to cleanly return `{ answer, nextQuestion }`.
+- Verified changes with integration test (`scratch-phase-test.ts`), which correctly passed typechecking and linked the services correctly (until hitting a temporary LLM API rate limit).
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 Adaptive Difficulty item as `[x]` done.
+- **PHASE 4 COMPLETE.**
