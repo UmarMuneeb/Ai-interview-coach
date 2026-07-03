@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SkillProfileService } from '../skill-profile/skill-profile.service';
 import { AssessmentService } from '../assessment/assessment.service';
+import { QuestionsService } from '../questions/questions.service';
 import { Question } from '@prisma/client';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class SessionsService {
     private prisma: PrismaService,
     private skillProfileService: SkillProfileService,
     private assessmentService: AssessmentService,
+    private questionsService: QuestionsService,
   ) {}
 
   async createSession(userId: string, field: string, phase: string, targetDuration: number, questionsPlanned: number) {
@@ -43,13 +45,19 @@ export class SessionsService {
       }
     });
 
-    await this.skillProfileService.updateSkillProfile(
+    const profile = await this.skillProfileService.updateSkillProfile(
       session.user_id,
       question.topic,
       question.subtopic,
       classificationResult.classification
     );
 
-    return answer;
+    // Dynamic pacing: fetch the next question matching the new difficulty!
+    const nextQuestion = await this.questionsService.getMockQuestion(question.topic, profile.current_difficulty);
+
+    return {
+      answer,
+      nextQuestion,
+    };
   }
 }

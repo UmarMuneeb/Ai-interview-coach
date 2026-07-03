@@ -33,11 +33,11 @@ async function runLiveTest() {
     console.log('\nCalling AssessmentService -> ProviderRouter -> Live LLM (Gemini/OpenAI)...');
     
     // Live call!
-    const sessionAnswer = await sessionsService.submitAnswer(session.id, mockQ, candidateAnswer);
+    const result = await sessionsService.submitAnswer(session.id, mockQ, candidateAnswer);
     
     console.log('\n--- LLM Live Classification Result ---');
-    console.log(`Classification: ${sessionAnswer.classification}`);
-    console.log(`Reasoning: ${sessionAnswer.reasoning}`);
+    console.log(`[Assessment] Classification: ${result.answer.classification}`);
+    console.log(`[Assessment] Reasoning: ${result.answer.reasoning}`);
 
   } catch (err: any) {
     console.error('❌ ERROR DURING EXECUTION:', err.message);

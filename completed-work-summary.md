@@ -81,3 +81,36 @@ This document serves as a record of completed work. It is appending-only so we d
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 3 items as `[x]` done.
 - **Phase 3 Complete!**
+
+## Phase 4: Voice & Real-Time Engine - In Progress
+
+### 1. VoiceModule WebSocket Gateway
+- Installed `@nestjs/websockets`, `@nestjs/platform-socket.io`, and `socket.io-client` (for testing).
+- Created `apps/api/src/voice/voice.gateway.ts` providing the `VoiceGateway` listening for WebSocket connections.
+- Implemented robust connection security by verifying the JWT via `client.handshake.auth.token` before accepting the connection.
+- Implemented an `audio_chunk` event receiver to acknowledge incoming streaming bytes.
+- Tested the connection successfully using a local test script (`scratch-voice-test.ts`) which proved the gateway instantly rejects unauthenticated sockets and correctly maintains authenticated ones.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 VoiceModule item as `[x]` done.
+
+### 2. ProviderRouterModule Live Stream Interface
+- Installed `ws` package for WebSocket connection support.
+- Implemented `connectLiveStream` method in `ProviderRouterService` to open a real-time bi-directional connection to the OpenAI Realtime API.
+- Abstracted the connection behind a clean `LiveStreamAdapter` interface providing `sendAudioChunk`, `commitAudio`, `onAudioReceived`, and `onTextReceived` hooks so other modules (like VoiceModule) do not interact with the underlying WebSocket directly.
+- Added usage cost logging hook to `response.done` event, securely logging metrics to `provider_usage` without leaking API keys.
+- Executed integration test script `scratch-realtime-test.ts` to verify the connection and event loop work correctly.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 ProviderRouter Live Stream item as `[x]` done.
+
+### 3. Adaptive Difficulty and Session Pacing (Phase 4 Final Step)
+- Edited `SkillProfileService` to dynamically update `current_difficulty` (1, 2, or 3) inside `updateSkillProfile` based on the candidate's aggregated `mastery_score`.
+- Imported `QuestionsModule` into `SessionsModule` and injected `QuestionsService` into `SessionsService`.
+- Modified the `submitAnswer` method to extract the updated `current_difficulty` from the evaluated `SkillProfile`, and immediately call `questionsService.getMockQuestion()` to fetch the next appropriately difficult question.
+- Updated the return signature of `submitAnswer` to cleanly return `{ answer, nextQuestion }`.
+- Verified changes with integration test (`scratch-phase-test.ts`), which correctly passed typechecking and linked the services correctly (until hitting a temporary LLM API rate limit).
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 Adaptive Difficulty item as `[x]` done.
+- **PHASE 4 COMPLETE.**

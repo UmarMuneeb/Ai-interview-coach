@@ -25,6 +25,7 @@ export class AssessmentService {
 
     const parsed = ClassificationSchema.safeParse(result.content);
     if (!parsed.success) {
+      console.log('DEBUG [AssessmentService] LLM returned invalid JSON:', result.content);
       // Retry once with an explicit correction prompt
       const retryResult = await this.providerRouter.complete({
         purpose: 'assessment',
