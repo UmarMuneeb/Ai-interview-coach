@@ -80,7 +80,11 @@ Question: ${questionPrompt}
 Missing points: ${missingPoints.join(', ')}
 User's new answer: ${answer}
 
-Evaluate if the user's new answer successfully addresses the missing points. Return your evaluation strictly following the schema.`;
+Evaluate if the user's new answer successfully addresses the missing points. You MUST return a valid JSON object exactly matching the schema.
+The JSON object MUST contain:
+- 'resolved': boolean, true if the user's new answer adequately addresses the missing points, false otherwise.
+- 'reasoning': string explaining your evaluation.
+- 'missingPoints': array of strings listing any rubric points that are STILL missing.`;
 
     const result = await this.providerRouter.complete({
       purpose: 'tutor',
