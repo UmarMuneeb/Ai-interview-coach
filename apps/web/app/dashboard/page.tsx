@@ -204,7 +204,7 @@ export default function DashboardPage() {
         {!isLoading && sessions.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {sessions.map((session) => {
-              const statusStyle = STATUS_COLORS[session.status] || STATUS_COLORS.active;
+              const { bg, text, border } = (STATUS_COLORS[session.status] || STATUS_COLORS.active)!;
               
               return (
                 <Link
@@ -249,9 +249,9 @@ export default function DashboardPage() {
                         <div
                           className="badge"
                           style={{
-                            background: statusStyle.bg,
-                            color: statusStyle.text,
-                            border: `1px solid ${statusStyle.border}`,
+                            background: bg,
+                            color: text,
+                            border: `1px solid ${border}`,
                           }}
                         >
                           {session.status}
