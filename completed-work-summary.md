@@ -63,3 +63,21 @@ This document serves as a record of completed work. It is appending-only so we d
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 2 Sessions and Skill Profile Module item as `[x]` done.
 - **Phase 2 Complete!**
+
+## Phase 3: Expansion (Completed on 2026-07-03)
+
+### 1. Provider Health & Cost Tracking
+- Implemented `ProviderHealthModule` to track circuit breaker health (Gemini / OpenAI).
+- Added `logUsage()` to insert `ProviderUsage` records for cost tracking.
+
+### 2. LLM Provider Fallback Router
+- Integrated `@google/genai` and `openai` SDKs into `ProviderRouterModule` to provide strict structured classification with automated fallback from Gemini to OpenAI.
+- Automatically records successes and failures to `ProviderHealthService`.
+
+### 3. Multi-DB Aggregator
+- Upgraded `QuestionsService` to read from a seeded JSON aggregator (`mock-questions.json`) to simulate dynamic multi-DB question retrieval.
+- Phase tests passed successfully by verifying circuit breaker throws as expected when no API keys are present, and falling back gracefully.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 3 items as `[x]` done.
+- **Phase 3 Complete!**

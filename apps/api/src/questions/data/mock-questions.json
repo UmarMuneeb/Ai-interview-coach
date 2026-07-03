@@ -1,0 +1,37 @@
+[
+  {
+    "topic": "JavaScript",
+    "subtopic": "Closures",
+    "difficulty": 1,
+    "prompt": "What is a closure in JavaScript and how does it work?",
+    "rubric_points": [
+      "Mention that a closure gives access to an outer function scope from an inner function.",
+      "Mention that closures are created every time a function is created.",
+      "Give a brief example or mention variables being preserved."
+    ],
+    "tags": ["javascript", "closures", "fundamentals"]
+  },
+  {
+    "topic": "React",
+    "subtopic": "Hooks",
+    "difficulty": 2,
+    "prompt": "Explain the rules of Hooks in React.",
+    "rubric_points": [
+      "Only call Hooks at the top level (not inside loops, conditions, or nested functions).",
+      "Only call Hooks from React function components or custom Hooks."
+    ],
+    "tags": ["react", "hooks"]
+  },
+  {
+    "topic": "System Design",
+    "subtopic": "Caching",
+    "difficulty": 3,
+    "prompt": "How would you design a caching strategy for a high-traffic read-heavy application?",
+    "rubric_points": [
+      "Mention using a distributed cache like Redis or Memcached.",
+      "Discuss cache invalidation strategies (e.g., TTL, write-through, or cache-aside).",
+      "Mention handling cache stampede/thundering herd."
+    ],
+    "tags": ["system-design", "caching", "architecture"]
+  }
+]
