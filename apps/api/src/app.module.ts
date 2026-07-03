@@ -10,9 +10,10 @@ import { ProviderRouterModule } from './provider-router/provider-router.module';
 import { ProviderHealthModule } from './provider-health/provider-health.module';
 import { VoiceModule } from './voice/voice.module';
 import { SkillProfileModule } from './skill-profile/skill-profile.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [AuthModule, QuestionsModule, SessionsModule, AssessmentModule, TutorModule, ProviderRouterModule, ProviderHealthModule, VoiceModule, SkillProfileModule],
+  imports: [AuthModule, QuestionsModule, SessionsModule, AssessmentModule, TutorModule, ProviderRouterModule, ProviderHealthModule, VoiceModule, SkillProfileModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService],
 })

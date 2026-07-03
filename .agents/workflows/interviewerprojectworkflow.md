@@ -20,8 +20,10 @@ Then run this cycle:
 4. Hand off to the Tester (.agents/4-tester.md) — write and run tests for
    the step. If tests fail, send back to step 2.
 
-5. On pass, update .agents/ledger.md — mark the step [x] with today's date —
-   and stop. Report what was completed and wait for the next /startcycle.
+5. On pass, update .agents/ledger.md — mark the step [x] with today's date.
+   Then append a detailed summary of the completed work to `completed-work-summary.md`
+   (ensuring you do not overwrite previous records) and stop. Report what was 
+   completed and wait for the next /startcycle.
 
 Do not skip ahead to a future roadmap phase. Do not touch modules outside
 the one named in the current step.
