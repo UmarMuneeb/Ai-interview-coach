@@ -38,10 +38,8 @@ Status: in-progress
 - [x] Step: Setup VoiceModule WebSocket Gateway for audio streaming
   Completed: 2026-07-03
 
-- [ ] Step: Implement audio streaming interface in ProviderRouterModule
-  Module: provider-router
-  Done when: Router can establish a persistent connection to an LLM Live API (OpenAI Realtime or Gemini Live) and proxy audio chunks bi-directionally.
-  Risk: high
+- [x] Step: Implement audio streaming interface in ProviderRouterModule
+  Completed: 2026-07-03
 
 - [ ] Step: Implement adaptive difficulty and session pacing
   Module: sessions

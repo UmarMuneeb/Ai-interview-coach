@@ -93,3 +93,13 @@ This document serves as a record of completed work. It is appending-only so we d
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 4 VoiceModule item as `[x]` done.
+
+### 2. ProviderRouterModule Live Stream Interface
+- Installed `ws` package for WebSocket connection support.
+- Implemented `connectLiveStream` method in `ProviderRouterService` to open a real-time bi-directional connection to the OpenAI Realtime API.
+- Abstracted the connection behind a clean `LiveStreamAdapter` interface providing `sendAudioChunk`, `commitAudio`, `onAudioReceived`, and `onTextReceived` hooks so other modules (like VoiceModule) do not interact with the underlying WebSocket directly.
+- Added usage cost logging hook to `response.done` event, securely logging metrics to `provider_usage` without leaking API keys.
+- Executed integration test script `scratch-realtime-test.ts` to verify the connection and event loop work correctly.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 ProviderRouter Live Stream item as `[x]` done.
