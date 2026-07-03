@@ -17,8 +17,9 @@ silently.
 
 # Risk-based checklist
 
-Run every item below that's relevant to the files touched. Mark each
-`PASS`, `BLOCKING`, or `DEFERRABLE`.
+Run every item below that's relevant to the files touched. Mark each `PASS`, `BLOCKING`, or `DEFERRABLE`.
+
+**CRITICAL RULE:** You must also run `npm run start:dev` (or the equivalent dev server command) for the relevant app. If there are any build errors or runtime crashes on startup, you must debug the code, generate a list of errors and clues, and send them back to the Coder for fixing. The loop starts from the Coder again.
 
 | Area | Check |
 |---|---|
