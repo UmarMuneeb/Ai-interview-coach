@@ -1,12 +1,165 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Classification {
+  correct
+  incorrect
+  partial
+  misunderstood
+  evasive
+}
+
+enum ResolvedVia {
+  self
+  explained
+}
+
+enum ProviderStatus {
+  healthy
+  degraded
+  down
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password_hash String
+  created_at    DateTime       @default(now())
+
+  sessions      Session[]
+  skill_profiles SkillProfile[]
+}
+
+model Question {
+  id                String          @id @default(uuid())
+  source_db         String
+  topic             String
+  subtopic          String
+  difficulty        Int
+  prompt            String
+  rubric_points     String[]
+  tags              String[]
+  last_refreshed_at DateTime
+
+  session_answers   SessionAnswer[]
+  tutor_attempts    TutorAttempt[]
+}
+
+model Session {
+  id                      String           @id @default(uuid())
+  user_id                 String
+  started_at              DateTime         @default(now())
+  ended_at                DateTime?
+  field                   String
+  phase                   String
+  status                  String
+  target_duration_minutes Int
+  questions_planned       Int
+
+  user                    User             @relation(fields: [user_id], references: [id])
+  session_segments        SessionSegment[]
+  session_answers         SessionAnswer[]
+  tutor_attempts          TutorAttempt[]
+  session_reports         SessionReport[]
+  provider_usages         ProviderUsage[]
+}
+
+model SessionSegment {
+  id              String    @id @default(uuid())
+  session_id      String
+  provider        String
+  started_at      DateTime  @default(now())
+  ended_at        DateTime?
+  resumed_from_id String?
+
+  session         Session   @relation(fields: [session_id], references: [id])
+}
+
+model SessionAnswer {
+  id              String         @id @default(uuid())
+  session_id      String
+  question_id     String
+  transcript      String
+  classification  Classification
+  confidence      Float
+  reasoning       String
+  follow_up_asked Boolean
+  timestamp       DateTime       @default(now())
+
+  session         Session        @relation(fields: [session_id], references: [id])
+  question        Question       @relation(fields: [question_id], references: [id])
+}
+
+model SkillProfile {
+  id                  String   @id @default(uuid())
+  user_id             String
+  topic               String
+  subtopic            String
+  correct_count       Int      @default(0)
+  incorrect_count     Int      @default(0)
+  misunderstood_count Int      @default(0)
+  evasive_count       Int      @default(0)
+  mastery_score       Float    @default(0.0)
+  current_difficulty  Int      @default(1)
+  last_seen_at        DateTime @default(now())
+
+  user                User     @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, topic, subtopic])
+}
+
+model TutorAttempt {
+  id             String       @id @default(uuid())
+  session_id     String
+  question_id    String
+  attempt_number Int
+  hint_level     Int
+  transcript     String
+  missing_points String[]
+  resolved       Boolean
+  resolved_via   ResolvedVia?
+  timestamp      DateTime     @default(now())
+
+  session        Session      @relation(fields: [session_id], references: [id])
+  question       Question     @relation(fields: [question_id], references: [id])
+}
+
+model SessionReport {
+  id                 String   @id @default(uuid())
+  session_id         String
+  summary            String
+  strengths          String[]
+  weaknesses         String[]
+  recommended_topics String[]
+  generated_at       DateTime @default(now())
+
+  session            Session  @relation(fields: [session_id], references: [id])
+}
+
+model ProviderUsage {
+  id            String   @id @default(uuid())
+  provider      String
+  model         String
+  session_id    String
+  tokens_in     Int
+  tokens_out    Int
+  audio_seconds Float
+  cost_usd      Float
+  created_at    DateTime @default(now())
+
+  session       Session  @relation(fields: [session_id], references: [id])
+}
+
+model ProviderHealth {
+  provider             String         @id
+  status               ProviderStatus
+  consecutive_failures Int            @default(0)
+  cooldown_until       DateTime?
+  last_error           String?
+  updated_at           DateTime       @updatedAt
 }
