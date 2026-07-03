@@ -23,7 +23,7 @@ Status: in-progress
   Completed: 2026-07-03
 
 ## Phase 3: Expansion
-Status: in-progress
+Status: done
 
 - [x] Step: Implement Provider Health & Cost Tracking (ProviderHealthModule)
   Completed: 2026-07-03
@@ -31,3 +31,19 @@ Status: in-progress
   Completed: 2026-07-03
 - [x] Step: Implement Multi-DB Question Aggregator (QuestionsModule expansion)
   Completed: 2026-07-03
+
+## Phase 4: Voice & Real-Time Engine
+Status: in-progress
+
+- [x] Step: Setup VoiceModule WebSocket Gateway for audio streaming
+  Completed: 2026-07-03
+
+- [ ] Step: Implement audio streaming interface in ProviderRouterModule
+  Module: provider-router
+  Done when: Router can establish a persistent connection to an LLM Live API (OpenAI Realtime or Gemini Live) and proxy audio chunks bi-directionally.
+  Risk: high
+
+- [ ] Step: Implement adaptive difficulty and session pacing
+  Module: sessions
+  Done when: `submitAnswer` updates `current_difficulty` dynamically based on recent classifications, and uses it to fetch the appropriately difficult next question.
+  Risk: normal

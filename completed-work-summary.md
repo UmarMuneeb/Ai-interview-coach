@@ -81,3 +81,15 @@ This document serves as a record of completed work. It is appending-only so we d
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 3 items as `[x]` done.
 - **Phase 3 Complete!**
+
+## Phase 4: Voice & Real-Time Engine - In Progress
+
+### 1. VoiceModule WebSocket Gateway
+- Installed `@nestjs/websockets`, `@nestjs/platform-socket.io`, and `socket.io-client` (for testing).
+- Created `apps/api/src/voice/voice.gateway.ts` providing the `VoiceGateway` listening for WebSocket connections.
+- Implemented robust connection security by verifying the JWT via `client.handshake.auth.token` before accepting the connection.
+- Implemented an `audio_chunk` event receiver to acknowledge incoming streaming bytes.
+- Tested the connection successfully using a local test script (`scratch-voice-test.ts`) which proved the gateway instantly rejects unauthenticated sockets and correctly maintains authenticated ones.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 4 VoiceModule item as `[x]` done.
