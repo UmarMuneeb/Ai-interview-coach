@@ -114,3 +114,22 @@ This document serves as a record of completed work. It is appending-only so we d
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 4 Adaptive Difficulty item as `[x]` done.
 - **PHASE 4 COMPLETE.**
+
+## Phase 5: Feedback tutor mode - In Progress
+
+### 1. Tutor schema and basic TutorModule
+- Created `apps/api/src/tutor/tutor.service.ts` to encapsulate database interactions for the `TutorAttempt` schema.
+- Added `createAttempt` and `getAttempts` methods to log and retrieve the Socratic hints provided during a session.
+- Updated `apps/api/src/tutor/tutor.module.ts` to import `PrismaModule` and export `TutorService` to preserve strict module boundaries.
+- Wrote and executed `scratch-tutor-test.ts` to verify Prisma insertion and retrieval.
+
+### 2. Persona switch and Socratic retry loop logic
+- Updated `apps/api/src/tutor/tutor.service.ts` to include `generateHint`, `evaluateTutorAnswer`, and `processTutorTurn` methods.
+- Utilized the `ProviderRouterService` inside `TutorService` to query the LLM using a strict strict `TutorEvaluationSchema` for accurate response parsing, with fallback retry logic.
+- Updated `apps/api/src/sessions/sessions.service.ts` to support transitioning from `interview` to `tutor` phase (`transitionToTutorPhase`).
+- Added `submitTutorAnswer` to handle routing Socratic turns, fetching the next weak question, and ultimately resolving or completing the session once all weak questions are addressed or exhausted.
+- Verified logic with a new `scratch-tutor-loop-test.ts` integration test, ensuring smooth state transitions and LLM fallback handling for invalid JSON returns.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 5 step 2 as `[x]` done.
+- **PHASE 5 COMPLETE.**

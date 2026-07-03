@@ -14,7 +14,15 @@ export class AssessmentService {
   constructor(private readonly providerRouter: ProviderRouterService) {}
 
   async classifyAnswer(answer: string, rubricPoints: string[], sessionId?: string) {
-    const prompt = `Classify this answer based on the rubric points.\nAnswer: ${answer}\nRubric: ${rubricPoints.join(', ')}`;
+    const prompt = `Classify this answer based on the rubric points. You MUST return a valid JSON object exactly matching the schema.
+The JSON object MUST contain:
+- 'classification': string, exactly one of ["correct", "incorrect", "partial", "misunderstood", "evasive"].
+- 'confidence': float between 0.0 and 1.0 representing your confidence in this classification.
+- 'reasoning': string explaining why you chose this classification.
+- 'missingPoints': (optional) array of strings listing any rubric points that were not met.
+
+Answer: ${answer}
+Rubric: ${rubricPoints.join(', ')}`;
     
     const result = await this.providerRouter.complete({
       purpose: 'assessment',

@@ -43,3 +43,11 @@ Status: in-progress
 
 - [x] Step: Implement adaptive difficulty and session pacing
   Completed: 2026-07-03
+
+## Phase 5: Feedback tutor mode
+Status: in-progress
+
+- [x] Step: Implement Tutor schema and basic TutorModule
+  Completed: 2026-07-03
+- [x] Step: Implement persona switch and Socratic retry loop logic
+  Completed: 2026-07-03
