@@ -74,8 +74,10 @@ export class ProviderRouterService {
     });
     
     let content = res.text;
-    if (request.responseSchema) {
-      content = JSON.parse(res.text || '{}');
+    if (request.responseSchema && res.text) {
+      // Strip markdown JSON fences if present
+      const cleanText = res.text.replace(/^```json\n/, '').replace(/\n```$/, '').trim();
+      content = JSON.parse(cleanText);
     }
     return {
       content,

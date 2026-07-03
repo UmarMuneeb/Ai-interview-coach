@@ -22,6 +22,11 @@ Write a temporary test script (e.g., `scratch-phase-test.ts`) or use curl/REST c
 - Core Services (via dependency injection script if no routes are exposed yet).
 - Database updates and side-effects.
 
+**CRITICAL API RULE**: You must ALWAYS test functionalities that require a third-party API or human interaction. Do NOT mock these out or skip them to force a pass.
+- If an API key is missing or not provided, STOP testing.
+- Ask the user to provide the API key first.
+- Do NOT give clearance if any functionality check (including live APIs) is skipped or left untested.
+
 ## 4. Evaluation & Rework
 - If **ANY** test case fails:
   1. Do NOT grant clearance for the next phase.
