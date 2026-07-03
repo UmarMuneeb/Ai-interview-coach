@@ -31,5 +31,6 @@ Write a temporary test script (e.g., `scratch-phase-test.ts`) or use curl/REST c
   
 ## 5. Clearance
 - If **ALL** test cases pass:
-  1. Generate a final summary artifact (`phase-clearance-report.md`) detailing the tested routes, the pass/fail cases that were verified, and a definitive statement that everything is correct.
-  2. Officially grant clearance to the user to move on to the next Phase in the roadmap.
+  1. Delete `phase-rework-plan.md` if it exists, to clean up the workspace.
+  2. Generate a final summary artifact (`phase-clearance-report.md`) detailing the tested routes, the pass/fail cases that were verified, and a definitive statement that everything is correct.
+  3. Officially grant clearance to the user to move on to the next Phase in the roadmap.
