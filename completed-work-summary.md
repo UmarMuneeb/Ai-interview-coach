@@ -133,3 +133,31 @@ This document serves as a record of completed work. It is appending-only so we d
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 5 step 2 as `[x]` done.
 - **PHASE 5 COMPLETE.**
+
+## Phase 6: Frontend (Started 2026-07-03)
+
+### 1. Global Design System, Layout, and Login Page
+
+#### Backend: Auth Endpoints
+- Implemented `apps/api/src/auth/auth.service.ts` with `login()` and `register()` methods using `bcryptjs` for password hashing and `@nestjs/jwt` for token issuance.
+- Implemented `apps/api/src/auth/auth.controller.ts` with `POST /auth/login` and `POST /auth/register` endpoints (public — no JWT guard, these produce the token).
+- Updated `apps/api/src/auth/auth.module.ts` to import `PrismaModule` for DB access.
+- Enabled CORS in `apps/api/src/main.ts` (origin: `FRONTEND_URL`, default `http://localhost:3000`) and fixed default port to 3001.
+- Added `JWT_SECRET` and `FRONTEND_URL` to `apps/api/.env`.
+
+#### Frontend: Design System
+- Replaced `apps/web/app/globals.css` with a complete premium dark-mode design system including:
+  - Full CSS custom property token set (colors, gradients, typography, spacing, radii, shadows, transitions).
+  - Utility classes: `.card`, `.btn`, `.btn-primary`, `.btn-ghost`, `.form-input`, `.text-gradient`, `.badge`, `.animate-fade-in`.
+  - Inter + JetBrains Mono fonts via Google Fonts.
+
+#### Frontend: Layout & Pages
+- Updated `apps/web/app/layout.tsx` with proper app metadata and cleaned up font loading.
+- Created `apps/web/app/components/AppLayout.tsx` — a shared sticky nav header wrapper for all authenticated pages.
+- Created `apps/web/app/login/page.tsx` — a premium dark-mode login/register page with tab toggle, staggered animations, inline error handling, JWT storage in `localStorage` under key `ai_coach_token`, and redirect to `/onboarding` on success.
+- Created `apps/web/app/onboarding/page.tsx` — stub page (full implementation is Phase 6 Step 2).
+- Updated `apps/web/app/page.tsx` to redirect to `/login`.
+- Created `apps/web/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:3001`.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 6 Step 1 as `[x]` done.
