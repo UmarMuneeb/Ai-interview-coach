@@ -161,3 +161,31 @@ This document serves as a record of completed work. It is appending-only so we d
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 6 Step 1 as `[x]` done.
+
+## Phase 6 — Step 2: Onboarding Page (2026-07-03)
+
+### Backend: SessionsController + getSession
+- Created `apps/api/src/sessions/sessions.controller.ts` with:
+  - `POST /sessions` — JWT-guarded; reads `userId` from JWT payload, calls `SessionsService.createSession()`, returns full session object with UUID.
+  - `GET /sessions/:id` — JWT-guarded; returns session by ID.
+- Added `getSession(id)` method to `apps/api/src/sessions/sessions.service.ts`.
+- Registered `SessionsController` in `apps/api/src/sessions/sessions.module.ts`.
+
+### Frontend: Onboarding Page
+- Replaced stub with a full premium 3-step onboarding form in `apps/web/app/onboarding/page.tsx`:
+  - **Step 1 — Field:** Card-grid selector for Full-Stack, System Design, or Agentic AI. Number badge animates to a ✓ checkmark when selected.
+  - **Step 2 — Duration:** 4-option grid: 15 / 30 / 45 / 60 min with question count auto-mapping.
+  - **Step 3 — Difficulty:** 3-option grid: Junior / Mid-Level / Senior with icons.
+  - Client-side validation: blocks submit if no field selected.
+  - On submit: reads JWT from `localStorage`, calls `POST /sessions`, redirects to `/interview/[sessionId]`.
+  - Unauthenticated redirect: if no token found in `localStorage`, redirects to `/login`.
+  - Live session summary shown below the form ("Full-Stack Engineering · 30 min · Mid-Level").
+- Created `apps/web/app/interview/[sessionId]/page.tsx` — stub page that renders the session ID so the redirect lands without a 404.
+
+### Test Results
+- `POST /sessions` (valid JWT) → 201 with `{ id, user_id, field, phase, status, target_duration_minutes, questions_planned }`
+- `POST /sessions` (no token) → 401 Unauthorized
+- Frontend TypeScript: 0 errors. API TypeScript: 0 errors.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 6 Step 2 as `[x]` done.

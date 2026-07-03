@@ -29,6 +29,12 @@ export class SessionsService {
     });
   }
 
+  async getSession(id: string) {
+    const session = await this.prisma.session.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('Session not found');
+    return session;
+  }
+
   async submitAnswer(sessionId: string, question: Question, transcript: string) {
     const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Session not found');
