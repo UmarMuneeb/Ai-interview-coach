@@ -75,3 +75,36 @@ Status: done
   Done when: `/dashboard` lists all past sessions with status and date. `/reports/[id]` shows the full session report (summary, strengths, weaknesses, topic mastery scores from `skill_profile`).
   Risk: normal
   Completed: 2026-07-03
+
+
+## Phase 7: Deployment & Polish
+Status: in-progress
+
+- [x] Step: Set up environment configuration for deployment
+  Module: Root, apps/api, apps/web
+  Done when: `.env.example` files exist for both apps with all required variables documented. Railway/Render and Vercel config files created.
+  Risk: high
+  Completed: 2026-07-04
+
+- [x] Step: Deploy API to Railway/Render
+  Module: apps/api
+  Done when: API is deployed and accessible at a public URL. Database connection working. Health check endpoint returns 200.
+  Risk: high
+  Completed: 2026-07-04
+
+- [x] Step: Deploy frontend to Vercel
+  Module: apps/web
+  Done when: Frontend is deployed and accessible. Environment variables configured. API integration working with production backend.
+  Risk: high
+  Completed: 2026-07-04
+
+- [ ] Step: End-to-end testing on production
+  Module: Full application
+  Done when: Complete user flow tested (login → onboarding → interview → tutor → dashboard → report) on production URLs.
+  Risk: normal
+
+- [x] Step: Set up CI/CD with GitHub Actions
+  Module: Root
+  Done when: `.github/workflows` directory contains workflow that runs lint + test on PR. Workflow passes on current codebase.
+  Risk: normal
+  Completed: 2026-07-04

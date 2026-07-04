@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ai-coach-api
+    env: node
+    buildCommand: npm install && npx turbo run build --filter=api
+    startCommand: npm run start:prod -w apps/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.x
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
