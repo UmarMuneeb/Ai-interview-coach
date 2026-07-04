@@ -40,6 +40,8 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
   const interimTranscript = useRef('');
   const currentSessionId = useRef(sessionId);
   const currentQuestion = useRef(initialPrompt || '');
+  const socketRef = useRef<Socket | null>(null);   // always-current socket ref
+  const isPendingStop = useRef(false);              // prevents double-send
 
   useEffect(() => {
     currentQuestion.current = initialPrompt || '';
@@ -148,6 +150,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     });
 
     currentSessionId.current = sessionId;
+    socketRef.current = newSocket;
     setSocket(newSocket);
 
     return () => {
@@ -216,6 +219,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
         const sr = new SpeechRecognition();
         sr.continuous = true;
         sr.interimResults = true;
+
         sr.onresult = (event: any) => {
           let finalText = '';
           let interimText = '';
@@ -229,9 +233,38 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
           interimTranscript.current += finalText;
           setTranscript(interimTranscript.current + (interimText ? ' ' + interimText : ''));
         };
+
         sr.onerror = (e: any) => {
-          console.warn('[Voice] SpeechRecognition error:', e.error);
+          // 'no-speech' is harmless — user just didn't say anything yet
+          if (e.error !== 'no-speech') {
+            console.warn('[Voice] SpeechRecognition error:', e.error);
+          }
         };
+
+        // KEY FIX: onend fires AFTER final onresult events have been delivered.
+        // This is where we safely read the complete transcript and send it.
+        sr.onend = () => {
+          if (!isPendingStop.current) return; // only act if we triggered the stop
+          isPendingStop.current = false;
+
+          const finalTranscript = interimTranscript.current.trim();
+          setIsRecording(false);
+          setVolume(0);
+
+          if (finalTranscript && socketRef.current) {
+            console.log('[Voice] Sending transcript:', finalTranscript.slice(0, 60));
+            setIsProcessing(true);
+            socketRef.current.emit('voice_turn', {
+              transcript: finalTranscript,
+              sessionId: currentSessionId.current,
+              currentQuestion: currentQuestion.current,
+            });
+          } else {
+            // Nothing to send — just make sure UI resets cleanly
+            setIsRecording(false);
+          }
+        };
+
         sr.start();
         speechRecognition.current = sr;
       } else {
@@ -247,9 +280,12 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
   };
 
   const stopRecording = useCallback(() => {
+    // Signal onend to send the transcript once final results arrive
+    isPendingStop.current = true;
+
     if (speechRecognition.current) {
       try { speechRecognition.current.stop(); } catch (e) {}
-      speechRecognition.current = null;
+      // NOTE: do NOT null speechRecognition.current here — onend still needs to fire
     }
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -259,20 +295,8 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
       mediaStream.current.getTracks().forEach((t) => t.stop());
       mediaStream.current = null;
     }
-
-    const finalTranscript = interimTranscript.current.trim();
-    setIsRecording(false);
-    setVolume(0);
-
-    if (finalTranscript && socket) {
-      setIsProcessing(true);
-      socket.emit('voice_turn', {
-        transcript: finalTranscript,
-        sessionId: currentSessionId.current,
-        currentQuestion: currentQuestion.current,
-      });
-    }
-  }, [socket]);
+    // isRecording + volume are reset inside sr.onend after transcript is sent
+  }, []);
 
   const endVoiceSession = useCallback(() => {
     if (socket) {
