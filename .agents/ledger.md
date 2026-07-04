@@ -161,7 +161,8 @@ Status: in-progress
   Done when: Before selecting a question, query session_answers to get list of question IDs already asked to this user (across all sessions for the target topic/subtopic). Filter these out of the selection pool. If no unseen questions remain in seed bank for the weak subtopic, trigger LLM-generation fallback to create a fresh question.
   Risk: high
 
-- [ ] Step: Add SkillProfileService.getWeakAreas() method
+- [x] Step: Add SkillProfileService.getWeakAreas() method
   Module: apps/api/src/skill-profile
   Done when: Export a method that queries skill_profile table for a user, returns topics/subtopics sorted by mastery_score ascending (lowest = weakest). Include only topics with mastery_score < 7.0. Used by sessions module for adaptive targeting.
   Risk: normal
+  Completed: 2026-07-04
