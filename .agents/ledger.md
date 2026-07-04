@@ -45,9 +45,35 @@ Status: in-progress
   Completed: 2026-07-03
 
 ## Phase 5: Feedback tutor mode
-Status: in-progress
+Status: done
 
 - [x] Step: Implement Tutor schema and basic TutorModule
   Completed: 2026-07-03
 - [x] Step: Implement persona switch and Socratic retry loop logic
   Completed: 2026-07-03
+
+## Phase 6: Frontend
+Status: in-progress
+
+- [x] Step: Implement global design system, layout, and login page
+  Completed: 2026-07-03
+
+- [ ] Step: Implement onboarding page to configure a new session
+  Module: apps/web/app/onboarding
+  Done when: The `/onboarding` page renders a form letting the user pick interview field, duration, and difficulty; on submit it calls `POST /sessions` and redirects to `/interview/[sessionId]`.
+  Risk: normal
+
+- [ ] Step: Implement the live interview session screen
+  Module: apps/web/app/interview
+  Done when: The `/interview/[sessionId]` page fetches the current session question via `GET /questions/mock`, displays it, allows voice input (WebSocket audio streaming through the voice gateway) OR typed text submission, posts answers via `POST /sessions/:id/answer`, and transitions to the tutor screen when the session phase becomes `tutor`.
+  Risk: high
+
+- [ ] Step: Implement the tutor / feedback screen
+  Module: apps/web/app/interview
+  Done when: When the session phase is `tutor`, the screen shows the weak question + AI hint and a text/voice input for the candidate's retry answer. Calls `POST /sessions/:id/tutor-answer` and loops until the session status is `completed`.
+  Risk: normal
+
+- [ ] Step: Implement the dashboard and session report pages
+  Module: apps/web/app/dashboard, apps/web/app/reports
+  Done when: `/dashboard` lists all past sessions with status and date. `/reports/[id]` shows the full session report (summary, strengths, weaknesses, topic mastery scores from `skill_profile`).
+  Risk: normal
