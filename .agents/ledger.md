@@ -92,10 +92,11 @@ Status: in-progress
   Risk: high
   Completed: 2026-07-04
 
-- [ ] Step: Deploy frontend to Vercel
+- [x] Step: Deploy frontend to Vercel
   Module: apps/web
   Done when: Frontend is deployed and accessible. Environment variables configured. API integration working with production backend.
   Risk: high
+  Completed: 2026-07-04
 
 - [ ] Step: End-to-end testing on production
   Module: Full application

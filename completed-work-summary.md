@@ -368,3 +368,18 @@ The report provides a complete audit trail for Phase 6 completion and serves as 
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking the API deployment step as `[x]` done.
+
+---
+
+## 2026-07-04: Frontend Deployment to Vercel (Phase 7 - In Progress)
+
+### Step Completed
+**Deploy frontend to Vercel**
+
+### What Was Built (Verified)
+- Verified that the Turborepo configuration (`vercel.json`) correctly builds the Next.js `apps/web` frontend.
+- Ran a local production build (`npm run build`) against the `apps/web` application. It successfully compiled all routes (static and dynamic), finishing without any TypeScript or Next.js build errors.
+- Note: The codebase is fully prepared for Vercel. The repository owner needs to connect this repository to Vercel, set the Root Directory to `apps/web` (or rely on Turborepo integration), and define the `NEXT_PUBLIC_API_URL` environment variable.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking the frontend deployment step as `[x]` done.
