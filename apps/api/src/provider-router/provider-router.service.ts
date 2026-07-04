@@ -83,7 +83,7 @@ export class ProviderRouterService {
 
   async synthesizeSpeech(text: string, sessionId?: string): Promise<string> {
     const inworldKey = process.env.INWORLD_API_KEY;
-    const voice = process.env.INWORLD_TTS_VOICE || 'Aria';
+    const voice = process.env.INWORLD_TTS_VOICE || 'Alex';
 
     // Primary: Inworld TTS REST API
     if (inworldKey) {
