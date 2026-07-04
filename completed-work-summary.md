@@ -189,3 +189,32 @@ This document serves as a record of completed work. It is appending-only so we d
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking Phase 6 Step 2 as `[x]` done.
+
+## Phase 6 — Step 3: Live Interview Session Screen (2026-07-03)
+
+### Backend: SessionsController & Foreign Key Fix
+- Expanded `SessionsController` with full interview endpoints:
+  - `POST /sessions/:id/answer`: accepts full mock question object & transcript.
+  - `POST /sessions/:id/transition`: updates session phase to 'tutor'.
+  - `POST /sessions/:id/tutor-answer`: accepts tutor response (stubbed for this step).
+- Fixed a critical Prisma Foreign Key crash: since mock questions (JSON) assign random UUIDs but are never saved to the DB in MVP phase 2, `prisma.sessionAnswer.create` failed. Fixed by adding a `prisma.question.upsert` inside `SessionsService.submitAnswer` to ensure the dynamically generated mock question exists in Postgres before linking the answer.
+- Fixed `QuestionsService` to load `mock-questions.json` using `process.cwd()` instead of `__dirname` to solve issues with NestJS's `dist` output wiping assets during hot-reloads. Also added `loadMockDb()` for lazy initialization.
+- Updated `nest-cli.json` to properly copy `src/questions/data/**/*` assets.
+
+### Frontend: Live Interview Page
+- Built full React page in `apps/web/app/interview/[sessionId]/page.tsx`:
+  - **Mount Phase:** Uses `useEffect` to trigger `fetchQuestion()` immediately on mount (loading state active).
+  - **Question Display:** Shows topic badge, difficulty level (colored text), and full text prompt.
+  - **Answer Input:** Multiline textarea for candidate response.
+  - **Classification Result:** Once submitted, displays the AI's classification (e.g. Correct, Partial, Off-track) complete with dedicated colors, icons, and % confidence score. Shows the detailed AI reasoning.
+  - **Next Question:** "Next Question" button fetches a new question from the API.
+  - **End Session:** Button explicitly calls `POST /sessions/:id/transition` and redirects the user to `/interview/[sessionId]/tutor`.
+- Created a stub `/tutor` page to prevent 404s on transition.
+
+### Test Results
+- E2E PowerShell script executed: successfully logged in, fetched a question, initiated a session, submitted a mismatched answer (Closure definition for React Hooks), and API successfully evaluated it as `misunderstood` and provided the next question.
+- Frontend & Backend TypeScript check: 0 errors.
+
+### Ledger State
+- Updated `.agents/ledger.md` marking Phase 6 Step 3 as `[x]` done.
+

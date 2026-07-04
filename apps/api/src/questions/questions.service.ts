@@ -6,18 +6,20 @@ import * as path from 'path';
 
 @Injectable()
 export class QuestionsService {
-  private mockDb: any[];
+  private mockDb: any[] = [];
 
-  constructor() {
-    const dataPath = path.join(__dirname, 'data', 'mock-questions.json');
+  constructor() {}
+
+  private loadMockDb() {
+    if (this.mockDb.length > 0) return;
+    const dataPath = path.join(process.cwd(), 'src', 'questions', 'data', 'mock-questions.json');
     if (fs.existsSync(dataPath)) {
       this.mockDb = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-    } else {
-      this.mockDb = [];
     }
   }
 
   async getMockQuestion(topic?: string, difficulty?: number): Promise<Question> {
+    this.loadMockDb();
     let filtered = this.mockDb;
     
     if (topic) {

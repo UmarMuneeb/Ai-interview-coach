@@ -61,10 +61,8 @@ Status: in-progress
 - [x] Step: Implement onboarding page to configure a new session
   Completed: 2026-07-03
 
-- [ ] Step: Implement the live interview session screen
-  Module: apps/web/app/interview
-  Done when: The `/interview/[sessionId]` page fetches the current session question via `GET /questions/mock`, displays it, allows voice input (WebSocket audio streaming through the voice gateway) OR typed text submission, posts answers via `POST /sessions/:id/answer`, and transitions to the tutor screen when the session phase becomes `tutor`.
-  Risk: high
+- [x] Step: Implement the live interview session screen
+  Completed: 2026-07-03
 
 - [ ] Step: Implement the tutor / feedback screen
   Module: apps/web/app/interview

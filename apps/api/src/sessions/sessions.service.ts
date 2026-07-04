@@ -41,6 +41,13 @@ export class SessionsService {
 
     const classificationResult = await this.assessmentService.classifyAnswer(transcript, question.rubric_points, sessionId);
 
+    // Upsert the question so the foreign key constraint passes
+    await this.prisma.question.upsert({
+      where: { id: question.id },
+      create: question,
+      update: question,
+    });
+
     const answer = await this.prisma.sessionAnswer.create({
       data: {
         session_id: sessionId,
