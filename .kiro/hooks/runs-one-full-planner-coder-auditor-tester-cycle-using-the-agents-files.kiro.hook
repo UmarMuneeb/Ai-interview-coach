@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "enabled": true,
+  "name": "Runs one full Planner → Coder → Auditor → Tester cycle using the .agents files",
+  "description": "Read .agents/0-context.md for full project context.\n\nThen run this cycle:\n\n1. Act as the Planner (.agents/1-planner.md). Take the next unstarted step\n   from .agents/ledger.md, or create the ledger with Phase 1 steps if it\n   doesn't exist yet.\n\n2. Hand off to the Coder (.agents/2-coder.md) — implement exactly that step,\n   nothing else.\n\n3. Hand off to the Auditor (.agents/3-auditor.md) — run the risk checklist.\n   If any BLOCKING issues are found, send back to step 2 with the fix list\n   and repeat until clean.\n\n4. Hand off to the Tester (.agents/4-tester.md) — write and run tests for\n   the step. If tests fail, send back to step 2.\n\n5. On pass, update .agents/ledger.md — mark the step [x] with today's date.\n   Then append a detailed summary of the completed work to `completed-work-summary.md`\n   (ensuring you do not overwrite previous records) and stop. Report what was \n   completed and wait for the next /startcycle.\n\nDo not skip ahead to a future roadmap phase. Do not touch modules outside\nthe one named in the current step.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Must follow each isntruction in the agents.md files"
+  }
+}
