@@ -103,7 +103,8 @@ Status: in-progress
   Done when: Complete user flow tested (login → onboarding → interview → tutor → dashboard → report) on production URLs.
   Risk: normal
 
-- [ ] Step: Set up CI/CD with GitHub Actions
+- [x] Step: Set up CI/CD with GitHub Actions
   Module: Root
   Done when: `.github/workflows` directory contains workflow that runs lint + test on PR. Workflow passes on current codebase.
   Risk: normal
+  Completed: 2026-07-04
