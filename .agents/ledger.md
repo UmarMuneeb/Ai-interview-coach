@@ -86,10 +86,11 @@ Status: in-progress
   Risk: high
   Completed: 2026-07-04
 
-- [ ] Step: Deploy API to Railway/Render
+- [x] Step: Deploy API to Railway/Render
   Module: apps/api
   Done when: API is deployed and accessible at a public URL. Database connection working. Health check endpoint returns 200.
   Risk: high
+  Completed: 2026-07-04
 
 - [ ] Step: Deploy frontend to Vercel
   Module: apps/web
