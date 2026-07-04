@@ -5,6 +5,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const DIFFICULTY_LABELS: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 
+interface QuestionBrief {
+  prompt: string;
+  topic: string;
+  difficulty: number;
+}
+
+export interface VoiceSessionConfig {
+  field: string;
+  role?: string;
+  difficulty?: number;
+  questions?: QuestionBrief[];
+  firstQuestion?: string;
+}
+
 export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -31,7 +45,65 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     currentQuestion.current = initialPrompt || '';
   }, [initialPrompt]);
 
-  // Initialize Socket.io
+  // ── Audio decode helper ───────────────────────────────────────────────
+  const decodeAudio = useCallback(async (base64: string, mimeType: string): Promise<AudioBuffer | null> => {
+    if (!audioContext.current) return null;
+
+    const binaryString = window.atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const isPcm = mimeType.includes('pcm') || mimeType.includes('L16') || mimeType.includes('l16');
+
+    if (!isPcm) {
+      // MP3 / WAV — browser decodes natively
+      try {
+        return await audioContext.current.decodeAudioData(bytes.buffer.slice(0));
+      } catch {
+        // If MP3 decode fails, try PCM as fallback
+        console.warn('[Voice] MP3 decode failed, trying PCM interpretation');
+      }
+    }
+
+    // PCM L16 (signed 16-bit, little-endian) — manual conversion to float32
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = (int16[i] as number) / 32768.0;
+    }
+    // Extract sample rate from mime string e.g. "audio/L16;codec=pcm;rate=24000"
+    const rateMatch = mimeType.match(/rate=(\d+)/);
+    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+    const buffer = audioContext.current.createBuffer(1, float32.length, sampleRate);
+    buffer.copyToChannel(float32, 0);
+    return buffer;
+  }, []);
+
+  // ── Playback queue ────────────────────────────────────────────────────
+  const playNextChunk = useCallback(() => {
+    if (isPlayingRef.current || playbackQueue.current.length === 0 || !audioContext.current) return;
+
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+
+    const audioBuffer = playbackQueue.current.shift()!;
+    const source = audioContext.current.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.current.destination);
+    source.onended = () => {
+      isPlayingRef.current = false;
+      if (playbackQueue.current.length === 0) {
+        setIsPlaying(false);
+      } else {
+        playNextChunk();
+      }
+    };
+    source.start(0);
+  }, []);
+
+  // ── Socket init ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!sessionId) return;
 
@@ -64,36 +136,13 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
       if (!audioContext.current) return;
 
       try {
-        // Decode base64 audio — supports MP3 (from Inworld) and PCM (Gemini fallback)
-        const base64 = data.delta;
-        const binaryString = window.atob(base64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
+        const audioBuffer = await decodeAudio(data.delta, data.mimeType || 'audio/mp3');
+        if (audioBuffer) {
+          playbackQueue.current.push(audioBuffer);
+          playNextChunk();
         }
-
-        const mimeType = data.mimeType || 'audio/mp3';
-        let audioBuffer: AudioBuffer;
-
-        if (mimeType.includes('mp3') || mimeType.includes('mpeg')) {
-          // MP3: use decodeAudioData (handles MP3 natively in browsers)
-          audioBuffer = await audioContext.current.decodeAudioData(bytes.buffer.slice(0));
-        } else {
-          // PCM fallback (Gemini): convert 16-bit int16 to float32
-          const int16Array = new Int16Array(bytes.buffer);
-          const float32Array = new Float32Array(int16Array.length);
-          for (let i = 0; i < int16Array.length; i++) {
-            float32Array[i] = (int16Array[i] as number) / 32768.0;
-          }
-          audioBuffer = audioContext.current.createBuffer(1, float32Array.length, 24000);
-          audioBuffer.copyToChannel(float32Array, 0);
-        }
-
-        playbackQueue.current.push(audioBuffer);
-        playNextChunk();
       } catch (e: any) {
-        console.error('[Voice] Failed to decode audio:', e.message);
+        console.error('[Voice] Failed to decode audio:', e.message, 'mimeType:', data.mimeType);
         setError('Failed to play audio response');
       }
     });
@@ -104,37 +153,15 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     return () => {
       newSocket.disconnect();
     };
-  }, [sessionId]);
+  }, [sessionId, decodeAudio, playNextChunk]);
 
-  const playNextChunk = useCallback(() => {
-    if (isPlayingRef.current || playbackQueue.current.length === 0 || !audioContext.current) return;
-
-    setIsPlaying(true);
-    isPlayingRef.current = true;
-
-    const audioBuffer = playbackQueue.current.shift()!;
-    const source = audioContext.current.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioContext.current.destination);
-
-    source.onended = () => {
-      isPlayingRef.current = false;
-      if (playbackQueue.current.length === 0) {
-        setIsPlaying(false);
-      } else {
-        playNextChunk();
-      }
-    };
-
-    source.start(0);
-  }, []);
-
+  // ── Start voice session ───────────────────────────────────────────────
   const startVoiceSession = useCallback(
-    async (field?: string, firstQuestion?: string) => {
+    async (config?: VoiceSessionConfig) => {
       setError(null);
       if (!socket) return;
 
-      // Create AudioContext on user gesture (required by browsers)
+      // AudioContext must be created on a user gesture
       if (!audioContext.current) {
         audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       }
@@ -144,13 +171,17 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
 
       socket.emit('start_voice_session', {
         sessionId: currentSessionId.current,
-        field: field || 'Full-stack Engineering',
-        firstQuestion: firstQuestion || initialPrompt || 'Tell me about a recent technical challenge you faced.',
+        field: config?.field || 'Full-stack Engineering',
+        role: config?.role || config?.field || 'Full-stack Engineer',
+        difficulty: config?.difficulty || 1,
+        questions: config?.questions || [],
+        firstQuestion: config?.firstQuestion || initialPrompt || 'Tell me about a recent technical challenge you faced.',
       });
     },
     [socket, initialPrompt],
   );
 
+  // ── Recording ─────────────────────────────────────────────────────────
   const startRecording = async () => {
     if (!audioContext.current) {
       audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -166,17 +197,14 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
 
       const source = audioContext.current.createMediaStreamSource(mediaStream.current);
       const processor = audioContext.current.createScriptProcessor(1024, 1, 1);
-
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
         let sumSquares = 0;
         for (let i = 0; i < inputData.length; i++) {
           sumSquares += (inputData[i] as number) * (inputData[i] as number);
         }
-        const rms = Math.sqrt(sumSquares / inputData.length);
-        setVolume(Math.min(1, rms * 25)); // boosted sensitivity
+        setVolume(Math.min(1, Math.sqrt(sumSquares / inputData.length) * 25));
       };
-
       source.connect(processor);
       processor.connect(audioContext.current.destination);
       processorRef.current = processor;
@@ -185,10 +213,10 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
-        speechRecognition.current = new SpeechRecognition();
-        speechRecognition.current.continuous = true;
-        speechRecognition.current.interimResults = true;
-        speechRecognition.current.onresult = (event: any) => {
+        const sr = new SpeechRecognition();
+        sr.continuous = true;
+        sr.interimResults = true;
+        sr.onresult = (event: any) => {
           let finalText = '';
           let interimText = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -201,7 +229,13 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
           interimTranscript.current += finalText;
           setTranscript(interimTranscript.current + (interimText ? ' ' + interimText : ''));
         };
-        speechRecognition.current.start();
+        sr.onerror = (e: any) => {
+          console.warn('[Voice] SpeechRecognition error:', e.error);
+        };
+        sr.start();
+        speechRecognition.current = sr;
+      } else {
+        setError('Your browser does not support speech recognition. Try Chrome or Edge.');
       }
 
       setTranscript('');
@@ -230,7 +264,6 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     setIsRecording(false);
     setVolume(0);
 
-    // Send the transcript as a voice turn to the backend
     if (finalTranscript && socket) {
       setIsProcessing(true);
       socket.emit('voice_turn', {

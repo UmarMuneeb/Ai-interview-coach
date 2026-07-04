@@ -58,31 +58,40 @@ export class VoiceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     payload: {
       sessionId: string;
       field?: string;
+      role?: string;
+      difficulty?: number;
+      questions?: Array<{ prompt: string; topic: string; difficulty: number }>;
       firstQuestion?: string;
     },
   ) {
     console.log(`[VoiceGateway] Starting voice session for ${client.id}`);
     try {
       const field = payload.field || 'Full-stack Engineering';
-      const firstQuestion = payload.firstQuestion || 'Tell me about a recent technical challenge you faced.';
+      const role = payload.role || field;
+      const difficulty = payload.difficulty || 1;
+      const questions = payload.questions || [];
+      const firstQuestion = payload.firstQuestion || questions[0]?.prompt || 'Tell me about a recent technical challenge you faced.';
 
       // Initialize conversation — get AI greeting text
       const greetingText = await this.conversationService.startConversation(
         client.id,
         payload.sessionId,
         field,
+        role,
+        difficulty,
+        questions,
         firstQuestion,
       );
 
-      // Convert greeting to speech
-      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+      // Convert greeting to speech (preserving actual mimeType from provider)
+      const { audio, mimeType } = await this.providerRouter.synthesizeSpeech(
         greetingText,
         payload.sessionId,
       );
 
       client.emit('voice_session_started', { success: true });
       client.emit('ai_text', { text: greetingText });
-      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+      client.emit('audio_response', { delta: audio, mimeType });
       console.log(`[VoiceGateway] Sent opening greeting for session ${payload.sessionId}`);
     } catch (err: any) {
       console.error(`[VoiceGateway] Error starting voice session: ${err.message}`);
@@ -117,13 +126,13 @@ export class VoiceGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       // Convert to speech
-      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+      const { audio, mimeType } = await this.providerRouter.synthesizeSpeech(
         aiText,
         payload.sessionId,
       );
 
       client.emit('ai_text', { text: aiText });
-      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+      client.emit('audio_response', { delta: audio, mimeType });
       console.log(`[VoiceGateway] Sent AI response for turn in session ${payload.sessionId}`);
     } catch (err: any) {
       console.error(`[VoiceGateway] Error processing voice turn: ${err.message}`);
@@ -141,12 +150,12 @@ export class VoiceGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     try {
       const closingText = await this.conversationService.endConversation(client.id);
-      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+      const { audio, mimeType } = await this.providerRouter.synthesizeSpeech(
         closingText,
         payload.sessionId,
       );
       client.emit('ai_text', { text: closingText });
-      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+      client.emit('audio_response', { delta: audio, mimeType });
     } catch (err: any) {
       console.error(`[VoiceGateway] Error ending voice session: ${err.message}`);
     }

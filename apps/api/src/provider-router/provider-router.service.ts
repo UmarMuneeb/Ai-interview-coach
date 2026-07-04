@@ -78,14 +78,17 @@ export class ProviderRouterService {
 
   // ─────────────────────────────────────────────────────────────────────
   // TTS — Inworld primary, Gemini fallback
-  // Returns base64-encoded audio string
+  // Returns { audio: base64String, mimeType } so the client decodes correctly
   // ─────────────────────────────────────────────────────────────────────
 
-  async synthesizeSpeech(text: string, sessionId?: string): Promise<string> {
+  async synthesizeSpeech(
+    text: string,
+    sessionId?: string,
+  ): Promise<{ audio: string; mimeType: string }> {
     const inworldKey = process.env.INWORLD_API_KEY;
     const voice = process.env.INWORLD_TTS_VOICE || 'Alex';
 
-    // Primary: Inworld TTS REST API
+    // Primary: Inworld TTS REST API (returns MP3)
     if (inworldKey) {
       try {
         const res = await fetch('https://api.inworld.ai/tts/v1/voice', {
@@ -112,7 +115,7 @@ export class ProviderRouterService {
             if (sessionId) {
               await this.healthService.logUsage('inworld', 'inworld-tts-1.5-max', sessionId, 0, 0, 0);
             }
-            return data.audioContent; // base64 MP3
+            return { audio: data.audioContent, mimeType: 'audio/mp3' };
           }
         } else {
           const errText = await res.text();
@@ -125,7 +128,7 @@ export class ProviderRouterService {
       console.warn('[ProviderRouter TTS] No INWORLD_API_KEY set, trying Gemini TTS fallback');
     }
 
-    // Fallback: Gemini generateContent with AUDIO modality
+    // Fallback: Gemini TTS (returns raw PCM L16 — different decoding needed on client!)
     try {
       console.log('[ProviderRouter TTS] Falling back to Gemini TTS...');
       const res = await this.geminiClient.models.generateContent({
@@ -144,8 +147,10 @@ export class ProviderRouterService {
       const parts = res.candidates?.[0]?.content?.parts || [];
       for (const part of parts) {
         if ((part as any).inlineData?.data) {
-          console.log('[ProviderRouter TTS] Gemini TTS fallback success');
-          return (part as any).inlineData.data; // base64 PCM/WAV
+          // Gemini returns 'audio/L16;codec=pcm;rate=24000' or similar
+          const mimeType = (part as any).inlineData.mimeType || 'audio/pcm;rate=24000';
+          console.log(`[ProviderRouter TTS] Gemini TTS fallback success (${mimeType})`);
+          return { audio: (part as any).inlineData.data, mimeType };
         }
       }
       throw new Error('Gemini TTS returned no audio data');

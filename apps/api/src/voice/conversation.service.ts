@@ -6,58 +6,64 @@ interface Message {
   content: string;
 }
 
+interface QuestionBrief {
+  prompt: string;
+  topic: string;
+  difficulty: number;
+}
+
 interface ConversationState {
   sessionId: string;
   field: string;
+  role: string;
   history: Message[];
   turnCount: number;
   currentDifficulty: number; // 1=Easy, 2=Medium, 3=Hard
   consecutiveCorrect: number;
   phase: 'intro' | 'interview' | 'wrap-up';
   currentQuestion: string | null;
+  allQuestions: QuestionBrief[];
+  questionIndex: number;
 }
 
-const INTERVIEWER_SYSTEM_PROMPT = `You are Alex, a warm and experienced senior engineer conducting a technical interview.
-Your personality: friendly, encouraging, curious, and thorough — like the best interviewer you've ever met.
-You are NOT a chatbot. You are a real human interviewer having a natural conversation.
+// Template — placeholders get replaced at runtime
+const INTERVIEWER_SYSTEM_PROMPT = `You are Alex, a warm and experienced interviewer conducting a real technical interview for a {{ROLE}} position.
+You are NOT a chatbot or assistant. You are a human interviewer. Do not break character.
 
-CORE RULES:
-- Keep every response to 2–4 sentences MAX. This is a conversation, not a lecture.
-- Never say "Correct!", "That is correct!", or any robotic affirmations. Use natural language.
-- Never read a question verbatim from a script — paraphrase it naturally as a conversation.
-- Always ask follow-up questions to go deeper after any answer.
-- When a candidate is stuck, offer a gentle prod like "Maybe think about it from the angle of..."
-- Use natural transitions between topics: "Okay, let's shift gears a bit..." or "Building on that..."
+THE INTERVIEW CONTEXT:
+- Role being interviewed for: {{ROLE}}
+- Field / domain: {{FIELD}}
+- Difficulty level for this session: {{DIFFICULTY}}
+- Total questions in queue: {{QUESTION_COUNT}}
 
-CONVERSATION PHASES:
+YOUR PREPARED QUESTIONS (ask them in order, paraphrasing naturally — never read verbatim):
+{{QUESTION_LIST}}
 
-PHASE: intro
-- Greet the candidate warmly and briefly introduce the format in 1–2 sentences.
-- Ask ONE light warm-up question about what they have been working on recently.
-- Listen to their answer and give a genuine, warm acknowledgement before moving to technical questions.
+YOUR PERSONALITY:
+- Warm, encouraging, and genuinely curious.
+- Like the best technical interviewer the candidate has ever met.
+- Conversational — you make the candidate feel comfortable, not interrogated.
 
-PHASE: interview
-- Start with easier conceptual questions, then gradually move to harder design/architecture questions.
-- After EVERY answer (correct or not), ask at least one follow-up that digs deeper:
-  * "Great — can you walk me through how that works under the hood?"
-  * "Interesting approach — what would happen if you had to scale that to 10 million users?"
-  * "You mentioned X — how does that interact with Y?"
-- Use natural positive affirmations when answers are good:
-  * "That's a solid approach."  "Good thinking."  "Exactly right, yeah."
-- When an answer is incomplete or wrong, be encouraging and give a gentle nudge:
-  * "You're on the right track — what about the caching layer?"
-  * "Close! Think about what happens when two requests come in simultaneously..."
-- Mirror the candidate's energy — if they get excited about a topic, explore it more.
+STRICT RULES:
+1. Keep each response to 2–4 sentences MAX. This is a conversation, not a lecture.
+2. Never say "Correct!", "That is correct!", "Great job!" robotically. Use natural language.
+3. Never read a question word-for-word — paraphrase naturally into conversation.
+4. After EVERY answer, ask a follow-up to dig deeper before moving to the next question:
+   - "Interesting — can you walk me through how that actually works under the hood?"
+   - "Good thinking — what would happen if we needed to scale that to millions of users?"
+   - "You mentioned X — how does that interact with Y in practice?"
+5. Give encouraging nudges when stuck: "Maybe think about it from the angle of X..."
+6. Use natural transitions: "Okay, let's shift gears..." / "Building on what you just said..."
 
-PHASE: wrap-up
-- Give a warm, encouraging close: "That wraps us up — you covered a lot of ground today."
-- Mention 1–2 specific things they did well.
+CONVERSATION FLOW:
+PHASE intro: Greet warmly. Mention the role and field briefly. Ask ONE casual warm-up question (e.g., "What have you been working on recently?"). Listen to the answer before starting technical questions.
+PHASE interview: Work through your prepared question list. Follow the difficulty progression. Always follow up before moving on.
+PHASE wrap-up: Close warmly, mention 1–2 things they did well specifically.
 
-CURRENT SESSION CONTEXT:
-Field: {{FIELD}}
-Current difficulty: {{DIFFICULTY}} (1=Easy, 2=Medium, 3=Hard)
+CURRENT STATE:
+Phase: {{PHASE}}
 Turn: {{TURN}}
-Current question to guide toward (do NOT read verbatim, paraphrase naturally): {{QUESTION}}`;
+Next question to work toward (paraphrase naturally): {{CURRENT_QUESTION}}`;
 
 @Injectable()
 export class ConversationService {
@@ -74,25 +80,31 @@ export class ConversationService {
     socketId: string,
     sessionId: string,
     field: string,
+    role: string,
+    difficulty: number,
+    questions: QuestionBrief[],
     firstQuestion: string,
   ): Promise<string> {
     const state: ConversationState = {
       sessionId,
       field,
+      role,
       history: [],
       turnCount: 0,
-      currentDifficulty: 1,
+      currentDifficulty: difficulty,
       consecutiveCorrect: 0,
       phase: 'intro',
       currentQuestion: firstQuestion,
+      allQuestions: questions,
+      questionIndex: 0,
     };
     this.conversations.set(socketId, state);
 
     const systemPrompt = this.buildSystemPrompt(state);
     state.history.push({ role: 'system', content: systemPrompt });
 
-    // Get AI opening greeting
-    const userMsg = '[INTRO] Start the interview. Greet the candidate and ask your warm-up question.';
+    // Trigger the greeting
+    const userMsg = '[SYSTEM] Start the interview now. Do the intro phase greeting.';
     state.history.push({ role: 'user', content: userMsg });
 
     const response = await this.providerRouter.complete({
@@ -122,15 +134,14 @@ export class ConversationService {
       throw new Error('No active conversation for this socket');
     }
 
-    // Update question context if provided
+    // Update current question if provided
     if (currentQuestion) {
       state.currentQuestion = currentQuestion;
     }
 
-    // After intro phase (2 turns), move to interview phase
+    // After intro phase (turn 2), move to interview phase
     if (state.phase === 'intro' && state.turnCount >= 2) {
       state.phase = 'interview';
-      // Rebuild system prompt with updated phase
       state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
     }
 
@@ -141,12 +152,21 @@ export class ConversationService {
         if (state.consecutiveCorrect >= 2 && state.currentDifficulty < 3) {
           state.currentDifficulty++;
           state.consecutiveCorrect = 0;
-          // Rebuild system prompt with new difficulty
           state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
         }
       } else {
         state.consecutiveCorrect = 0;
       }
+    }
+
+    // Advance question index after follow-up (every 2 turns in interview)
+    if (state.phase === 'interview' && state.turnCount % 2 === 0 && state.allQuestions.length > 0) {
+      state.questionIndex = Math.min(state.questionIndex + 1, state.allQuestions.length - 1);
+      const nextQ = state.allQuestions[state.questionIndex];
+      if (nextQ) {
+        state.currentQuestion = nextQ.prompt;
+      }
+      state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
     }
 
     state.history.push({ role: 'user', content: userTranscript });
@@ -161,7 +181,7 @@ export class ConversationService {
     state.history.push({ role: 'assistant', content: aiText });
     state.turnCount++;
 
-    // Keep history manageable: keep system prompt + last 20 messages
+    // Keep history manageable: system prompt + last 20 messages
     if (state.history.length > 22) {
       state.history = [state.history[0], ...state.history.slice(-20)];
     }
@@ -180,7 +200,7 @@ export class ConversationService {
     state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
     state.history.push({
       role: 'user',
-      content: '[WRAP-UP] The interview session is ending. Give a warm, encouraging close.',
+      content: '[SYSTEM] The interview session is ending. Give the wrap-up now.',
     });
 
     try {
@@ -195,9 +215,6 @@ export class ConversationService {
     }
   }
 
-  /**
-   * Clean up conversation state when socket disconnects.
-   */
   cleanup(socketId: string): void {
     this.conversations.delete(socketId);
   }
@@ -208,10 +225,22 @@ export class ConversationService {
 
   private buildSystemPrompt(state: ConversationState): string {
     const difficultyLabels: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
+
+    // Build numbered question list for the prompt
+    const questionList = state.allQuestions.length > 0
+      ? state.allQuestions
+          .map((q, i) => `  ${i + 1}. [${difficultyLabels[q.difficulty] || 'Medium'}] ${q.prompt}`)
+          .join('\n')
+      : `  1. ${state.currentQuestion || 'Ask relevant technical questions for this role'}`;
+
     return INTERVIEWER_SYSTEM_PROMPT
-      .replace('{{FIELD}}', state.field)
-      .replace('{{DIFFICULTY}}', `${state.currentDifficulty} (${difficultyLabels[state.currentDifficulty] || 'Medium'})`)
+      .replace(/{{ROLE}}/g, state.role || state.field)
+      .replace(/{{FIELD}}/g, state.field)
+      .replace(/{{DIFFICULTY}}/g, `${state.currentDifficulty} — ${difficultyLabels[state.currentDifficulty] || 'Medium'}`)
+      .replace('{{QUESTION_COUNT}}', `${state.allQuestions.length}`)
+      .replace('{{QUESTION_LIST}}', questionList)
+      .replace('{{PHASE}}', state.phase)
       .replace('{{TURN}}', `${state.turnCount}`)
-      .replace('{{QUESTION}}', state.currentQuestion || 'No specific question — continue the conversation naturally');
+      .replace('{{CURRENT_QUESTION}}', state.currentQuestion || 'Continue naturally');
   }
 }

@@ -48,6 +48,8 @@ export default function InterviewPage() {
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [question, setQuestion] = useState<Question | null>(null);
+  const [sessionField, setSessionField] = useState('Full-stack Engineering');
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [transcript, setTranscript] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<AnswerResult | null>(null);
@@ -71,27 +73,54 @@ export default function InterviewPage() {
     const token = getToken();
     if (!token) return;
     try {
+      // Fetch session field for AI context
+      const sessionRes = await fetch(`${API_URL}/sessions/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData.field) setSessionField(sessionData.field);
+      }
+
+      // Fetch current question
       const res = await fetch(`${API_URL}/questions/mock`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch question');
       const q = await res.json();
       setQuestion(q);
-      
+
+      // Pre-fetch 4 more questions for voice AI context (best-effort)
+      if (allQuestions.length === 0) {
+        const extras: Question[] = [q];
+        for (let i = 0; i < 4; i++) {
+          try {
+            const r = await fetch(`${API_URL}/questions/mock`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (r.ok) {
+              const eq = await r.json();
+              if (!extras.find(x => x.id === eq.id)) extras.push(eq);
+            }
+          } catch { /* ignore */ }
+        }
+        setAllQuestions(extras);
+      }
+
       if (answeredCount === 0) {
         setPhase('ready');
       } else {
         setPhase('interview');
         setTimeout(() => textareaRef.current?.focus(), 100);
       }
-      
+
       setTranscript('');
       setLastResult(null);
     } catch (err: any) {
       setErrorMsg(err.message);
       setPhase('error');
     }
-  }, [getToken]);
+  }, [getToken, sessionId, answeredCount, allQuestions.length]);
 
   // Load session and first question on mount
   useEffect(() => {
@@ -100,6 +129,7 @@ export default function InterviewPage() {
     if (!token) { router.push('/login'); return; }
     fetchQuestion();
   }, [sessionId, router, fetchQuestion]);
+
 
   async function handleSubmitAnswer(e?: React.FormEvent, overrideTranscript?: string) {
     if (e) e.preventDefault();
@@ -130,12 +160,7 @@ export default function InterviewPage() {
     }
   }
 
-  // Effect to auto-submit when voice transcript changes and is finalized
-  useEffect(() => {
-    if (voice.transcript && !voice.isRecording && !voice.isPlaying && !voice.isProcessing && !isSubmitting && !lastResult) {
-      handleSubmitAnswer(undefined, voice.transcript);
-    }
-  }, [voice.transcript, voice.isRecording, voice.isPlaying, voice.isProcessing, isSubmitting, lastResult]);
+  // In voice mode, the AI handles the conversation — no auto-submit to grading API
 
   function handleNextQuestion() {
     voice.setTranscript('');
@@ -207,10 +232,13 @@ export default function InterviewPage() {
             </p>
             <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => {
                setPhase('interview');
-               voice.startVoiceSession(
-                 'Full-stack Engineering',
-                 question?.prompt
-               );
+               voice.startVoiceSession({
+                 field: sessionField,
+                 role: sessionField,
+                 difficulty: question?.difficulty || 1,
+                 questions: allQuestions.map(q => ({ prompt: q.prompt, topic: q.topic, difficulty: q.difficulty })),
+                 firstQuestion: question?.prompt,
+               });
             }}>
                Start Voice Interview
             </button>
@@ -263,7 +291,13 @@ export default function InterviewPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             {!voice.isVoiceMode ? (
-              <button className="btn btn-outline" onClick={() => voice.startVoiceSession('Full-stack Engineering', question?.prompt)} style={{ fontSize: 'var(--text-sm)' }}>
+              <button className="btn btn-outline" onClick={() => voice.startVoiceSession({
+                field: sessionField,
+                role: sessionField,
+                difficulty: question?.difficulty || 1,
+                questions: allQuestions.map(q => ({ prompt: q.prompt, topic: q.topic, difficulty: q.difficulty })),
+                firstQuestion: question?.prompt,
+              })} style={{ fontSize: 'var(--text-sm)' }}>
                 🎙️ Switch to Voice
               </button>
             ) : (
@@ -281,8 +315,8 @@ export default function InterviewPage() {
           </div>
         </div>
 
-        {/* Question card */}
-        {question && (
+        {/* Question card — hidden in voice mode (Alex asks it verbally) */}
+        {question && !voice.isVoiceMode && (
           <div className="card animate-fade-in animate-delay-1" style={{ padding: 'var(--space-8)', marginBottom: 'var(--space-4)', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
               <span className="badge badge-blue" style={{ textTransform: 'capitalize' }}>{question.topic}</span>
