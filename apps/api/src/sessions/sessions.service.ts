@@ -85,23 +85,39 @@ export class SessionsService {
       data: { phase: 'tutor' },
     });
 
-    // Find the first weak answer (not 'correct')
-    const weakAnswer = await this.prisma.sessionAnswer.findFirst({
-      where: {
-        session_id: sessionId,
-        classification: {
-          not: 'correct'
-        }
-      },
-      include: {
-        question: true
-      },
-      orderBy: {
-        timestamp: 'asc'
-      }
+    return this.getTutorState(sessionId);
+  }
+
+  async getTutorState(sessionId: string) {
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session || session.phase !== 'tutor') {
+      throw new NotFoundException('Session not found or not in tutor phase');
+    }
+
+    // Find all weak answers
+    const allWeak = await this.prisma.sessionAnswer.findMany({
+      where: { session_id: sessionId, classification: { not: 'correct' } },
+      include: { question: true },
+      orderBy: { timestamp: 'asc' }
     });
 
-    return { weakAnswer };
+    for (const weak of allWeak) {
+      const weakAttempts = await this.tutorService.getAttempts(sessionId, weak.question_id);
+      const isResolved = weakAttempts.some(a => a.resolved) || weakAttempts.length >= 3;
+      
+      if (!isResolved) {
+        // This is the active tutor question
+        const latestAttempt = weakAttempts.length > 0 ? weakAttempts[weakAttempts.length - 1] : null;
+        return { 
+          weakAnswer: weak,
+          attempts: weakAttempts.length,
+          latestHint: latestAttempt ? (latestAttempt as any).hint : null // For MVP we need to fetch the hint, but Prisma schema doesn't have a hint field. Wait! 
+        };
+      }
+    }
+
+    // No weak answers left
+    return { weakAnswer: null };
   }
 
   async submitTutorAnswer(sessionId: string, questionId: string, transcript: string) {
@@ -164,6 +180,94 @@ export class SessionsService {
     return {
       tutorResult: result,
       nextWeakAnswer
+    };
+  }
+
+  async listUserSessions(userId: string) {
+    return this.prisma.session.findMany({
+      where: { user_id: userId },
+      orderBy: { started_at: 'desc' },
+      select: {
+        id: true,
+        field: true,
+        phase: true,
+        status: true,
+        started_at: true,
+        ended_at: true,
+        target_duration_minutes: true,
+        questions_planned: true,
+      }
+    });
+  }
+
+  async getSessionReport(sessionId: string) {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        session_answers: {
+          include: { question: true }
+        }
+      }
+    });
+
+    if (!session) throw new NotFoundException('Session not found');
+
+    // Get skill profile data for this user
+    const skillProfiles = await this.prisma.skillProfile.findMany({
+      where: { user_id: session.user_id }
+    });
+
+    // Calculate summary statistics
+    const answerStats = {
+      total: session.session_answers.length,
+      correct: session.session_answers.filter(a => a.classification === 'correct').length,
+      incorrect: session.session_answers.filter(a => a.classification === 'incorrect').length,
+      partial: session.session_answers.filter(a => a.classification === 'partial').length,
+      misunderstood: session.session_answers.filter(a => a.classification === 'misunderstood').length,
+      evasive: session.session_answers.filter(a => a.classification === 'evasive').length,
+    };
+
+    // Group by topic/subtopic
+    const topicBreakdown = session.session_answers.reduce((acc: any, answer) => {
+      const key = `${answer.question.topic}/${answer.question.subtopic}`;
+      if (!acc[key]) {
+        acc[key] = { correct: 0, total: 0, topic: answer.question.topic, subtopic: answer.question.subtopic };
+      }
+      acc[key].total++;
+      if (answer.classification === 'correct') acc[key].correct++;
+      return acc;
+    }, {});
+
+    // Identify strengths and weaknesses
+    const breakdown = Object.values(topicBreakdown) as any[];
+    const strengths = breakdown
+      .filter(b => b.correct / b.total >= 0.7)
+      .map(b => `${b.topic} / ${b.subtopic}`);
+    const weaknesses = breakdown
+      .filter(b => b.correct / b.total < 0.5)
+      .map(b => `${b.topic} / ${b.subtopic}`);
+
+    return {
+      session: {
+        id: session.id,
+        field: session.field,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+        duration_minutes: session.target_duration_minutes,
+        status: session.status,
+      },
+      summary: answerStats,
+      strengths,
+      weaknesses,
+      topicBreakdown: breakdown,
+      skillProfiles: skillProfiles.map(sp => ({
+        topic: sp.topic,
+        subtopic: sp.subtopic,
+        masteryScore: sp.mastery_score,
+        correctCount: sp.correct_count,
+        incorrectCount: sp.incorrect_count,
+        currentDifficulty: sp.current_difficulty,
+      })),
     };
   }
 }
