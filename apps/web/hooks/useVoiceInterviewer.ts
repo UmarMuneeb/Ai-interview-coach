@@ -162,7 +162,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
   const startVoiceSession = useCallback(
     async (config?: VoiceSessionConfig) => {
       setError(null);
-      if (!socket) return;
+      if (!socket || isVoiceMode) return;
 
       // AudioContext must be created on a user gesture
       if (!audioContext.current) {
@@ -181,7 +181,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
         firstQuestion: config?.firstQuestion || initialPrompt || 'Tell me about a recent technical challenge you faced.',
       });
     },
-    [socket, initialPrompt],
+    [socket, initialPrompt, isVoiceMode],
   );
 
   // ── Recording ─────────────────────────────────────────────────────────
