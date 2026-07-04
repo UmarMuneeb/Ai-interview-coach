@@ -7,7 +7,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 18.x
+        value: 22.x
       - key: DATABASE_URL
         sync: false
       - key: GEMINI_API_KEY
