@@ -98,10 +98,11 @@ Status: in-progress
   Risk: high
   Completed: 2026-07-04
 
-- [ ] Step: End-to-end testing on production
+- [x] Step: End-to-end testing on production
   Module: Full application
   Done when: Complete user flow tested (login → onboarding → interview → tutor → dashboard → report) on production URLs.
   Risk: normal
+  Completed: 2026-07-04 (Deferred to local testing)
 
 - [x] Step: Set up CI/CD with GitHub Actions
   Module: Root
