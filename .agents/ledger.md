@@ -134,15 +134,17 @@ Status: done
 ## Phase 9: Report Generation & Skill Profile Enhancements
 Status: in-progress
 
-- [ ] Step: Implement LLM-generated Question Bank Expansion
+- [x] Step: Implement LLM-generated Question Bank Expansion
   Module: apps/api/src/questions
   Done when: When getNextQuestion() finds no unseen questions in the seed bank for a given topic/subtopic/difficulty, it calls provider-router (purpose: 'question-generation') to generate a new question, validates its schema, and inserts it into the `questions` table for reuse.
   Risk: high
+  Completed: 2026-07-04
 
-- [ ] Step: Implement LLM-powered narrative session report generation
+- [x] Step: Implement LLM-powered narrative session report generation
   Module: apps/api/src/sessions
   Done when: When a session completes, call provider-router (purpose: 'report-generation') to generate narrative summary with strengths/weaknesses/recommended topics. Store result in `session_reports` table. GET /sessions/:id/report returns this persisted report instead of computing stats on-the-fly.
   Risk: normal
+  Completed: 2026-07-04
 
 - [ ] Step: Implement cross-session adaptive question targeting
   Module: apps/api/src/sessions, apps/api/src/skill-profile, apps/api/src/questions

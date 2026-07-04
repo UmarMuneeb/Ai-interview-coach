@@ -1,14 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { Question } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { ProviderRouterService } from '../provider-router/provider-router.service';
+import { z } from 'zod';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Validation schema for LLM-generated questions
+const GeneratedQuestionSchema = z.object({
+  topic: z.string().min(1, 'Topic is required'),
+  subtopic: z.string().min(1, 'Subtopic is required'),
+  difficulty: z.number().int().min(1).max(5),
+  prompt: z.string().min(10, 'Prompt must be at least 10 characters'),
+  rubricPoints: z.array(z.string()).min(1, 'At least one rubric point required'),
+  tags: z.array(z.string()).default([]),
+});
+
+type GeneratedQuestionInput = z.infer<typeof GeneratedQuestionSchema>;
+
 @Injectable()
 export class QuestionsService {
+  private readonly logger = new Logger(QuestionsService.name);
   private mockDb: any[] = [];
 
-  constructor() {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly providerRouter: ProviderRouterService,
+  ) {}
 
   private loadMockDb() {
     if (this.mockDb.length > 0) return;
@@ -24,6 +43,134 @@ export class QuestionsService {
     }
   }
 
+  /**
+   * Get next question for a session, with LLM-generation fallback.
+   * Priority:
+   * 1. Seed questions from Prisma DB (source_db = 'seed')
+   * 2. Previously generated questions (source_db = 'generated')
+   * 3. Generate new question via LLM if none available
+   */
+  async getNextQuestion(
+    userId: string,
+    topic: string,
+    subtopic?: string,
+    difficulty?: number,
+    excludeQuestionIds: string[] = [],
+  ): Promise<Question> {
+    // Try to find unseen question in database
+    const whereClause: any = {
+      topic,
+      id: { notIn: excludeQuestionIds },
+    };
+    if (subtopic) whereClause.subtopic = subtopic;
+    if (difficulty) whereClause.difficulty = difficulty;
+
+    const availableQuestions = await this.prisma.question.findMany({
+      where: whereClause,
+      orderBy: [
+        { source_db: 'asc' }, // Prefer 'seed' over 'generated'
+        { last_refreshed_at: 'asc' }, // Least recently used
+      ],
+    });
+
+    if (availableQuestions.length > 0) {
+      // Return random from top 5 least recently used
+      const pool = availableQuestions.slice(0, Math.min(5, availableQuestions.length));
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // No unseen questions found — generate a new one
+    this.logger.log(
+      `No unseen questions for topic=${topic}, subtopic=${subtopic}, difficulty=${difficulty}. Generating...`,
+    );
+
+    return this.generateQuestion(topic, subtopic || topic, difficulty || 2);
+  }
+
+  /**
+   * Generate a new question using LLM and insert into database.
+   * Retries once on schema validation failure.
+   */
+  private async generateQuestion(
+    topic: string,
+    subtopic: string,
+    difficulty: number,
+    retryCount: number = 0,
+  ): Promise<Question> {
+    const difficultyLabel = { 1: 'Easy', 2: 'Medium', 3: 'Hard', 4: 'Very Hard', 5: 'Expert' }[difficulty] || 'Medium';
+
+    const prompt = `Generate a technical interview question for the following criteria:
+
+Topic: ${topic}
+Subtopic: ${subtopic}
+Difficulty: ${difficulty}/5 (${difficultyLabel})
+
+Requirements:
+- The question should test deep understanding of ${subtopic} in the context of ${topic}
+- Include 3-5 rubric points that define a correct answer
+- Add relevant tags for categorization
+- The prompt should be clear and specific
+
+Return a JSON object with this exact structure:
+{
+  "topic": "${topic}",
+  "subtopic": "${subtopic}",
+  "difficulty": ${difficulty},
+  "prompt": "The question text here",
+  "rubricPoints": ["point 1", "point 2", "point 3"],
+  "tags": ["tag1", "tag2"]
+}`;
+
+    try {
+      const response = await this.providerRouter.complete({
+        purpose: 'question-generation',
+        messages: [{ role: 'user', content: prompt }],
+        responseSchema: GeneratedQuestionSchema,
+      });
+
+      // Response content is already validated and parsed by provider-router
+      const generated = response.content as GeneratedQuestionInput;
+
+      // Insert into database
+      const question = await this.prisma.question.create({
+        data: {
+          id: crypto.randomUUID(),
+          source_db: 'generated',
+          topic: generated.topic,
+          subtopic: generated.subtopic,
+          difficulty: generated.difficulty,
+          prompt: generated.prompt,
+          rubric_points: generated.rubricPoints,
+          tags: generated.tags,
+          last_refreshed_at: new Date(),
+        },
+      });
+
+      this.logger.log(`Generated new question: ${question.id} for ${topic}/${subtopic}`);
+      return question;
+    } catch (error: any) {
+      // Retry once on validation failure
+      if (retryCount === 0) {
+        this.logger.warn(
+          `Question generation failed (attempt 1): ${error.message}. Retrying...`,
+        );
+        return this.generateQuestion(topic, subtopic, difficulty, 1);
+      }
+
+      // Both attempts failed
+      this.logger.error(
+        `Question generation failed after 2 attempts for ${topic}/${subtopic}: ${error.message}`,
+      );
+      throw new NotFoundException(
+        `Unable to generate question for ${topic}/${subtopic}. Please try again.`,
+      );
+    }
+  }
+
+  /**
+   * Legacy method for backward compatibility with existing code.
+   * Loads from mock JSON file and returns a random question.
+   */
   async getMockQuestion(
     topic?: string,
     difficulty?: number,

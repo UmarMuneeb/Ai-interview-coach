@@ -1,19 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SkillProfileService } from '../skill-profile/skill-profile.service';
 import { AssessmentService } from '../assessment/assessment.service';
 import { QuestionsService } from '../questions/questions.service';
 import { TutorService } from '../tutor/tutor.service';
+import { ProviderRouterService } from '../provider-router/provider-router.service';
 import { Question } from '@prisma/client';
 
 @Injectable()
 export class SessionsService {
+  private readonly logger = new Logger(SessionsService.name);
+
   constructor(
     private prisma: PrismaService,
     private skillProfileService: SkillProfileService,
     private assessmentService: AssessmentService,
     private questionsService: QuestionsService,
     private tutorService: TutorService,
+    private providerRouter: ProviderRouterService,
   ) {}
 
   async createSession(
@@ -216,6 +220,9 @@ export class SessionsService {
           where: { id: sessionId },
           data: { status: 'completed', ended_at: new Date() },
         });
+
+        // Generate session report
+        await this.generateSessionReport(sessionId);
       }
     }
 
@@ -242,7 +249,167 @@ export class SessionsService {
     });
   }
 
+  /**
+   * Generate narrative session report using LLM and persist to session_reports table.
+   * Called automatically when session status → 'completed'.
+   */
+  private async generateSessionReport(sessionId: string): Promise<void> {
+    this.logger.log(`Generating session report for ${sessionId}...`);
+
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        session_answers: {
+          include: { question: true },
+        },
+      },
+    });
+
+    if (!session) {
+      this.logger.error(`Session ${sessionId} not found for report generation`);
+      return;
+    }
+
+    // Calculate statistics for LLM prompt
+    const answerStats = {
+      total: session.session_answers.length,
+      correct: session.session_answers.filter((a) => a.classification === 'correct').length,
+      incorrect: session.session_answers.filter((a) => a.classification === 'incorrect').length,
+      partial: session.session_answers.filter((a) => a.classification === 'partial').length,
+      misunderstood: session.session_answers.filter((a) => a.classification === 'misunderstood').length,
+      evasive: session.session_answers.filter((a) => a.classification === 'evasive').length,
+    };
+
+    // Group by topic/subtopic
+    const topicBreakdown = session.session_answers.reduce((acc: any, answer) => {
+      const key = `${answer.question.topic}/${answer.question.subtopic}`;
+      if (!acc[key]) {
+        acc[key] = { correct: 0, total: 0, topic: answer.question.topic, subtopic: answer.question.subtopic };
+      }
+      acc[key].total++;
+      if (answer.classification === 'correct') acc[key].correct++;
+      return acc;
+    }, {});
+
+    const breakdown = Object.values(topicBreakdown);
+
+    // Get skill profiles
+    const skillProfiles = await this.prisma.skillProfile.findMany({
+      where: { user_id: session.user_id },
+    });
+
+    // Build prompt for LLM
+    const prompt = `Generate a comprehensive interview session report for the candidate.
+
+**Session Overview:**
+- Field: ${session.field}
+- Duration: ${session.target_duration_minutes} minutes
+- Questions Answered: ${answerStats.total}
+
+**Performance Statistics:**
+- Correct: ${answerStats.correct}
+- Incorrect: ${answerStats.incorrect}
+- Partial: ${answerStats.partial}
+- Misunderstood: ${answerStats.misunderstood}
+- Evasive: ${answerStats.evasive}
+
+**Topic Breakdown:**
+${breakdown.map((b: any) => `- ${b.topic} / ${b.subtopic}: ${b.correct}/${b.total} correct (${Math.round((b.correct / b.total) * 100)}%)`).join('\n')}
+
+**Current Skill Mastery:**
+${skillProfiles.map((sp) => `- ${sp.topic} / ${sp.subtopic}: Mastery ${sp.mastery_score.toFixed(1)}/10.0 (Difficulty ${sp.current_difficulty})`).join('\n')}
+
+Generate a JSON object with:
+{
+  "summary": "A 2-3 paragraph narrative summary of the candidate's overall performance, tone should be encouraging but honest",
+  "strengths": ["Array of 3-5 specific strengths demonstrated during the session"],
+  "weaknesses": ["Array of 3-5 specific areas for improvement"],
+  "recommendedTopics": ["Array of 3-5 topics/subtopics the candidate should focus on next"]
+}
+
+Make the feedback actionable and specific to the data above. Avoid generic statements.`;
+
+    try {
+      const response = await this.providerRouter.complete({
+        purpose: 'report-generation',
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      // Parse LLM response (provider-router returns already parsed if JSON)
+      const reportData = typeof response.content === 'string' 
+        ? JSON.parse(response.content) 
+        : response.content;
+
+      // Store in session_reports table
+      await this.prisma.sessionReport.create({
+        data: {
+          session_id: sessionId,
+          summary: reportData.summary,
+          strengths: reportData.strengths,
+          weaknesses: reportData.weaknesses,
+          recommended_topics: reportData.recommendedTopics,
+        },
+      });
+
+      this.logger.log(`Session report generated successfully for ${sessionId}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to generate session report for ${sessionId}: ${error.message}`);
+      
+      // Fallback: create basic report from stats
+      const strengths = breakdown
+        .filter((b: any) => b.correct / b.total >= 0.7)
+        .map((b: any) => `${b.topic} / ${b.subtopic}`);
+      const weaknesses = breakdown
+        .filter((b: any) => b.correct / b.total < 0.5)
+        .map((b: any) => `${b.topic} / ${b.subtopic}`);
+
+      await this.prisma.sessionReport.create({
+        data: {
+          session_id: sessionId,
+          summary: `Session completed with ${answerStats.correct}/${answerStats.total} correct answers. Performance was ${answerStats.correct >= answerStats.total * 0.7 ? 'strong' : 'mixed'}.`,
+          strengths: strengths.length > 0 ? strengths : ['Completed the session'],
+          weaknesses: weaknesses.length > 0 ? weaknesses : ['Could improve overall accuracy'],
+          recommended_topics: weaknesses.length > 0 ? weaknesses : [session.field],
+        },
+      });
+
+      this.logger.log(`Fallback report created for ${sessionId}`);
+    }
+  }
+
   async getSessionReport(sessionId: string) {
+    // Check if persisted report exists
+    const persistedReport = await this.prisma.sessionReport.findFirst({
+      where: { session_id: sessionId },
+      include: {
+        session: {
+          select: {
+            id: true,
+            field: true,
+            started_at: true,
+            ended_at: true,
+            target_duration_minutes: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (persistedReport) {
+      // Return persisted report
+      return {
+        session: persistedReport.session,
+        summary: persistedReport.summary,
+        strengths: persistedReport.strengths,
+        weaknesses: persistedReport.weaknesses,
+        recommendedTopics: persistedReport.recommended_topics,
+        generatedAt: persistedReport.generated_at,
+      };
+    }
+
+    // Fallback: compute stats on-the-fly (for sessions completed before this feature)
+    this.logger.warn(`No persisted report found for session ${sessionId}, computing on-the-fly`);
+
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
       include: {
