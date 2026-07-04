@@ -10,119 +10,145 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 
-import {
-  ProviderRouterService,
-  LiveStreamAdapter,
-} from '../provider-router/provider-router.service';
+import { ProviderRouterService } from '../provider-router/provider-router.service';
+import { ConversationService } from './conversation.service';
 
 @WebSocketGateway({ cors: true })
 export class VoiceGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private activeStreams = new Map<string, LiveStreamAdapter>();
-
   constructor(
     private readonly jwtService: JwtService,
     private readonly providerRouter: ProviderRouterService,
+    private readonly conversationService: ConversationService,
   ) {}
 
   async handleConnection(client: Socket) {
     try {
       let token =
         client.handshake.auth?.token || client.handshake.headers?.authorization;
-      if (!token) {
-        throw new Error('No token provided');
-      }
-      if (token.startsWith('Bearer ')) {
-        token = token.split(' ')[1];
-      }
+      if (!token) throw new Error('No token provided');
+      if (token.startsWith('Bearer ')) token = token.split(' ')[1];
 
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.JWT_SECRET || 'fallback_secret',
       });
-
       client.data.user = payload;
-      console.log(
-        `[VoiceGateway] Client connected: ${client.id} (User: ${payload.sub})`,
-      );
+      console.log(`[VoiceGateway] Client connected: ${client.id} (User: ${payload.sub})`);
     } catch (e: any) {
-      console.log(
-        `[VoiceGateway] Unauthorized connection attempt: ${e.message}`,
-      );
+      console.log(`[VoiceGateway] Unauthorized: ${e.message}`);
       client.disconnect(true);
     }
   }
 
   handleDisconnect(client: Socket) {
     console.log(`[VoiceGateway] Client disconnected: ${client.id}`);
-    const adapter = this.activeStreams.get(client.id);
-    if (adapter) {
-      adapter.close();
-      this.activeStreams.delete(client.id);
-    }
+    this.conversationService.cleanup(client.id);
   }
 
+  /**
+   * Start a new voice interview session.
+   * AI greets the candidate and speaks the intro question via TTS.
+   */
   @SubscribeMessage('start_voice_session')
   async handleStartVoiceSession(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { sessionId: string; initialPrompt?: string },
+    @MessageBody()
+    payload: {
+      sessionId: string;
+      field?: string;
+      firstQuestion?: string;
+    },
   ) {
     console.log(`[VoiceGateway] Starting voice session for ${client.id}`);
     try {
-      // Disconnect existing if any
-      const existing = this.activeStreams.get(client.id);
-      if (existing) {
-        existing.close();
-      }
+      const field = payload.field || 'Full-stack Engineering';
+      const firstQuestion = payload.firstQuestion || 'Tell me about a recent technical challenge you faced.';
 
-      const adapter = await this.providerRouter.connectLiveStream(
+      // Initialize conversation — get AI greeting text
+      const greetingText = await this.conversationService.startConversation(
+        client.id,
         payload.sessionId,
-        payload.initialPrompt,
+        field,
+        firstQuestion,
       );
 
-      adapter.onAudioReceived((base64Audio) => {
-        client.emit('audio_response', { delta: base64Audio });
-      });
+      // Convert greeting to speech
+      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+        greetingText,
+        payload.sessionId,
+      );
 
-      adapter.onTextReceived((text) => {
-        client.emit('text_transcript', { text });
-      });
-
-      this.activeStreams.set(client.id, adapter);
       client.emit('voice_session_started', { success: true });
+      client.emit('ai_text', { text: greetingText });
+      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+      console.log(`[VoiceGateway] Sent opening greeting for session ${payload.sessionId}`);
     } catch (err: any) {
-      client.emit('voice_error', { message: err.message });
+      console.error(`[VoiceGateway] Error starting voice session: ${err.message}`);
+      client.emit('voice_error', { message: `Failed to start voice session: ${err.message}` });
     }
   }
 
-  @SubscribeMessage('update_voice_prompt')
-  handleUpdateVoicePrompt(
+  /**
+   * Process a user's voice turn: transcript → LLM → TTS → emit audio back.
+   */
+  @SubscribeMessage('voice_turn')
+  async handleVoiceTurn(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { prompt: string },
+    @MessageBody()
+    payload: {
+      transcript: string;
+      sessionId: string;
+      currentQuestion?: string;
+      wasCorrect?: boolean;
+    },
   ) {
-    const adapter = this.activeStreams.get(client.id);
-    if (adapter && payload.prompt) {
-      adapter.updatePrompt?.(payload.prompt);
+    if (!payload.transcript?.trim()) return;
+    console.log(`[VoiceGateway] voice_turn from ${client.id}: "${payload.transcript.slice(0, 80)}..."`);
+
+    try {
+      // Get conversational AI response
+      const aiText = await this.conversationService.processTurn(
+        client.id,
+        payload.transcript,
+        payload.currentQuestion,
+        payload.wasCorrect,
+      );
+
+      // Convert to speech
+      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+        aiText,
+        payload.sessionId,
+      );
+
+      client.emit('ai_text', { text: aiText });
+      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+      console.log(`[VoiceGateway] Sent AI response for turn in session ${payload.sessionId}`);
+    } catch (err: any) {
+      console.error(`[VoiceGateway] Error processing voice turn: ${err.message}`);
+      client.emit('voice_error', { message: `Voice processing failed: ${err.message}` });
     }
   }
 
-  @SubscribeMessage('audio_chunk')
-  handleAudioChunk(
+  /**
+   * Gracefully end the conversation — AI gives a warm closing.
+   */
+  @SubscribeMessage('end_voice_session')
+  async handleEndVoiceSession(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { audio: string },
+    @MessageBody() payload: { sessionId: string },
   ) {
-    const adapter = this.activeStreams.get(client.id);
-    if (adapter && payload.audio) {
-      adapter.sendAudioChunk(payload.audio);
-    }
-  }
-
-  @SubscribeMessage('commit_audio')
-  handleCommitAudio(@ConnectedSocket() client: Socket) {
-    const adapter = this.activeStreams.get(client.id);
-    if (adapter) {
-      adapter.commitAudio();
+    try {
+      const closingText = await this.conversationService.endConversation(client.id);
+      const audioBase64 = await this.providerRouter.synthesizeSpeech(
+        closingText,
+        payload.sessionId,
+      );
+      client.emit('ai_text', { text: closingText });
+      client.emit('audio_response', { delta: audioBase64, mimeType: 'audio/mp3' });
+    } catch (err: any) {
+      console.error(`[VoiceGateway] Error ending voice session: ${err.message}`);
     }
   }
 }

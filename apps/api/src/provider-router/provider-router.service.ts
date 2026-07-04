@@ -12,16 +12,6 @@ export interface CompleteRequest {
   responseSchema?: z.ZodTypeAny;
 }
 
-export interface LiveStreamAdapter {
-  sendAudioChunk: (base64Audio: string) => void;
-  commitAudio: () => void;
-  updatePrompt?: (prompt: string) => void;
-  onAudioReceived: (handler: (base64Audio: string) => void) => void;
-  onTextReceived: (handler: (text: string) => void) => void;
-  onClose: (handler: () => void) => void;
-  close: () => void;
-}
-
 @Injectable()
 export class ProviderRouterService {
   private geminiClient: GoogleGenAI;
@@ -31,6 +21,10 @@ export class ProviderRouterService {
     this.geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     this.openAiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Text / LLM completion — Gemini primary, OpenAI fallback
+  // ─────────────────────────────────────────────────────────────────────
 
   async complete(request: CompleteRequest): Promise<{ content: any }> {
     // 1. Try Gemini (Primary)
@@ -52,9 +46,7 @@ export class ProviderRouterService {
         return { content: result.content };
       } catch (e: any) {
         await this.healthService.recordFailure('gemini', e.message);
-        console.warn(
-          `[ProviderRouter] Gemini failed, falling back. Error: ${e.message}`,
-        );
+        console.warn(`[ProviderRouter] Gemini failed, falling back. Error: ${e.message}`);
       }
     }
 
@@ -81,10 +73,91 @@ export class ProviderRouterService {
       }
     }
 
-    throw new InternalServerErrorException(
-      'All LLM providers failed or are degraded.',
-    );
+    throw new InternalServerErrorException('All LLM providers failed or are degraded.');
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TTS — Inworld primary, Gemini fallback
+  // Returns base64-encoded audio string
+  // ─────────────────────────────────────────────────────────────────────
+
+  async synthesizeSpeech(text: string, sessionId?: string): Promise<string> {
+    const inworldKey = process.env.INWORLD_API_KEY;
+    const voice = process.env.INWORLD_TTS_VOICE || 'Aria';
+
+    // Primary: Inworld TTS REST API
+    if (inworldKey) {
+      try {
+        const res = await fetch('https://api.inworld.ai/tts/v1/voice', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${inworldKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            voiceId: voice,
+            modelId: 'inworld-tts-1.5-max',
+            text,
+            audioConfig: {
+              audioEncoding: 'MP3',
+              sampleRateHertz: 24000,
+            },
+          }),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          if (data.audioContent) {
+            console.log('[ProviderRouter TTS] Inworld TTS success');
+            if (sessionId) {
+              await this.healthService.logUsage('inworld', 'inworld-tts-1.5-max', sessionId, 0, 0, 0);
+            }
+            return data.audioContent; // base64 MP3
+          }
+        } else {
+          const errText = await res.text();
+          console.warn(`[ProviderRouter TTS] Inworld returned ${res.status}: ${errText}`);
+        }
+      } catch (e: any) {
+        console.warn(`[ProviderRouter TTS] Inworld TTS failed: ${e.message}`);
+      }
+    } else {
+      console.warn('[ProviderRouter TTS] No INWORLD_API_KEY set, trying Gemini TTS fallback');
+    }
+
+    // Fallback: Gemini generateContent with AUDIO modality
+    try {
+      console.log('[ProviderRouter TTS] Falling back to Gemini TTS...');
+      const res = await this.geminiClient.models.generateContent({
+        model: 'gemini-2.5-flash-preview-tts',
+        contents: text,
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Aoede' },
+            },
+          },
+        } as any,
+      });
+
+      const parts = res.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if ((part as any).inlineData?.data) {
+          console.log('[ProviderRouter TTS] Gemini TTS fallback success');
+          return (part as any).inlineData.data; // base64 PCM/WAV
+        }
+      }
+      throw new Error('Gemini TTS returned no audio data');
+    } catch (e: any) {
+      console.error('[ProviderRouter TTS] Gemini TTS fallback also failed:', e.message);
+      throw new InternalServerErrorException('All TTS providers failed.');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Private helpers
+  // ─────────────────────────────────────────────────────────────────────
 
   private async callGemini(request: CompleteRequest) {
     const prompt = request.messages
@@ -94,9 +167,7 @@ export class ProviderRouterService {
     const config: any = {};
     if (request.responseSchema) {
       config.responseMimeType = 'application/json';
-      config.responseSchema = zodToJsonSchema(
-        request.responseSchema as any,
-      ) as any;
+      config.responseSchema = zodToJsonSchema(request.responseSchema as any) as any;
     }
 
     const res = await this.geminiClient.models.generateContent({
@@ -148,144 +219,5 @@ export class ProviderRouterService {
       tokensIn: res.usage?.prompt_tokens || 0,
       tokensOut: res.usage?.completion_tokens || 0,
     };
-  }
-
-  async connectLiveStream(
-    sessionId: string,
-    initialPrompt?: string,
-  ): Promise<LiveStreamAdapter> {
-    const geminiHealth = await this.healthService.checkHealth('gemini');
-    if (!geminiHealth) {
-      throw new InternalServerErrorException(
-        'Gemini provider is unhealthy. Realtime API requires Gemini currently.',
-      );
-    }
-
-    let audioHandler: ((audio: string) => void) | null = null;
-    let textHandler: ((text: string) => void) | null = null;
-    let closeHandler: (() => void) | null = null;
-
-    try {
-      const config: any = {
-        systemInstruction: initialPrompt ? { parts: [{ text: initialPrompt }] } : undefined,
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: 'Puck' // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede'
-              }
-            }
-          }
-        }
-      };
-
-      // Connect to Gemini Live API
-      const session = await this.geminiClient.live.connect({
-        model: 'models/gemini-2.0-flash-exp',
-        config,
-        callbacks: {
-          onmessage: (data: any) => {
-            const sc = data.serverContent || data;
-            if (sc?.modelTurn) {
-              const parts = sc.modelTurn.parts || [];
-              for (const part of parts) {
-                if (part.inlineData && part.inlineData.data && audioHandler) {
-                  audioHandler(part.inlineData.data);
-                }
-                if (part.text && textHandler) {
-                  textHandler(part.text);
-                }
-              }
-            }
-          },
-          onclose: () => {
-            if (closeHandler) closeHandler();
-          },
-          onerror: (err: any) => {
-            console.error('[ProviderRouter LiveStream] WebSocket error:', err);
-            this.healthService.recordFailure('gemini', err?.message || 'WebSocket Error');
-          }
-        }
-      });
-
-      if (initialPrompt) {
-        // Nudge the model to ask the question
-        (session as any).send({
-          clientContent: {
-            turns: [
-              {
-                role: 'user',
-                parts: [{ text: 'I am ready. Please ask the question.' }]
-              }
-            ],
-            turnComplete: true
-          }
-        });
-      }
-
-      const adapter: LiveStreamAdapter = {
-        sendAudioChunk: (base64Audio: string) => {
-          (session as any).send({
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: 'audio/pcm;rate=16000',
-                data: base64Audio
-              }]
-            }
-          });
-        },
-        commitAudio: () => {
-          // Tell Gemini the user has finished speaking for this turn
-          (session as any).send({
-            clientContent: {
-              turns: [],
-              turnComplete: true
-            }
-          });
-        },
-        updatePrompt: (prompt: string) => {
-          // Send a nudge as text to simulate updating the instructions
-          (session as any).send({
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [{ text: `System Note: ${prompt}. I am ready for the next question. Please ask it.` }]
-                }
-              ],
-              turnComplete: true
-            }
-          });
-        },
-        onAudioReceived: (handler) => {
-          audioHandler = handler;
-        },
-        onTextReceived: (handler) => {
-          textHandler = handler;
-        },
-        onClose: (handler) => {
-          closeHandler = handler;
-        },
-        close: () => {
-          try {
-             // In the new SDK, disconnect or close is used?
-             // Since we don't have exactly the typescript def for close, let's just emit close on our end or call disconnect
-             // The GoogleGenAI Live object might have disconnect()
-             if ((session as any).disconnect) {
-               (session as any).disconnect();
-             } else if ((session as any).close) {
-               (session as any).close();
-             }
-          } catch(e) {}
-        },
-      };
-
-      return adapter;
-    } catch (err: any) {
-      console.error('[ProviderRouter LiveStream] Connection error:', err);
-      this.healthService.recordFailure('gemini', err.message);
-      throw err;
-    }
   }
 }

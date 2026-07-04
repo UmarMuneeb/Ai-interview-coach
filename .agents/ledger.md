@@ -125,7 +125,7 @@ Status: unstarted
   Risk: normal
   Completed: 2026-07-04
 
-- [ ] Step: Migrate to Gemini Multimodal Live API
-  Module: apps/api/src/provider-router, apps/web/hooks/useVoiceInterviewer
-  Done when: The voice session connects via the @google/genai Live client, streams 16kHz PCM audio, and plays 24kHz AI audio correctly without OpenAI keys.
+- [ ] Step: Migrate to Inworld TTS + Conversational AI Interviewer
+  Module: apps/api/src/voice, apps/api/src/provider-router, apps/web/hooks, apps/web/app/interview
+  Done when: Voice session starts with Alex (AI interviewer) greeting the candidate, asking warm-up question, then progressing Easy→Medium→Hard with follow-up questions. TTS audio plays back via Inworld API.
   Risk: high

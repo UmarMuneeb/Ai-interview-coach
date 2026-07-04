@@ -56,17 +56,10 @@ export default function InterviewPage() {
   const [isEndingSession, setIsEndingSession] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const voicePrompt = question ? `You are an AI Interview Coach conducting a technical interview. The current question you must ask and evaluate is: "${question.prompt}". Keep your responses concise.` : undefined;
   const voice = useVoiceInterviewer(
     sessionId,
-    voicePrompt
+    question?.prompt
   );
-
-  useEffect(() => {
-    if (voice.isVoiceMode && voicePrompt) {
-      voice.updatePrompt(voicePrompt);
-    }
-  }, [voice.isVoiceMode, voicePrompt, voice.updatePrompt]);
 
   const getToken = useCallback(() => {
     const token = localStorage.getItem('ai_coach_token');
@@ -214,7 +207,10 @@ export default function InterviewPage() {
             </p>
             <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => {
                setPhase('interview');
-               voice.startVoiceSession();
+               voice.startVoiceSession(
+                 'Full-stack Engineering',
+                 question?.prompt
+               );
             }}>
                Start Voice Interview
             </button>
@@ -267,7 +263,7 @@ export default function InterviewPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             {!voice.isVoiceMode ? (
-              <button className="btn btn-outline" onClick={voice.startVoiceSession} style={{ fontSize: 'var(--text-sm)' }}>
+              <button className="btn btn-outline" onClick={() => voice.startVoiceSession('Full-stack Engineering', question?.prompt)} style={{ fontSize: 'var(--text-sm)' }}>
                 🎙️ Switch to Voice
               </button>
             ) : (
@@ -374,14 +370,14 @@ export default function InterviewPage() {
               disabled={isSubmitting}
             />
 
-            {errorMsg && (
+            {(errorMsg || voice.error) && (
               <div id="interview-error" role="alert" className="form-error" style={{
                 padding: 'var(--space-3)',
                 background: 'rgba(239,68,68,0.08)',
                 border: '1px solid rgba(239,68,68,0.2)',
                 borderRadius: 'var(--radius-md)',
               }}>
-                <span>⚠️</span> {errorMsg}
+                <span>⚠️</span> {errorMsg || voice.error}
               </div>
             )}
 
@@ -416,35 +412,100 @@ export default function InterviewPage() {
         {/* Voice UI */}
         {!lastResult && voice.isVoiceMode && (
           <div className="card animate-fade-in" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)', flex: 1, justifyContent: 'center' }}>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+
+            {/* Difficulty progress indicator */}
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              {[1, 2, 3].map(d => (
+                <div key={d} style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: d <= voice.difficulty
+                    ? (d === 1 ? 'var(--color-accent-green)' : d === 2 ? 'var(--color-accent-amber)' : 'var(--color-accent-red)')
+                    : 'var(--color-border)',
+                  transition: 'background 0.3s ease',
+                }} />
+              ))}
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginLeft: 4 }}>
+                {voice.difficultyLabel}
+              </span>
+            </div>
+
+            {/* AI Speech Bubble */}
+            {voice.aiText && (
+              <div style={{
+                width: '100%',
+                padding: 'var(--space-4)',
+                background: 'var(--color-surface-hover)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--color-border)',
+                position: 'relative',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-purple, #8b5cf6))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, color: '#fff', flexShrink: 0, fontWeight: 600
+                  }}>A</div>
+                  <p style={{
+                    color: 'var(--color-text-primary)',
+                    fontSize: 'var(--text-sm)',
+                    lineHeight: 1.6,
+                    margin: 0,
+                    fontStyle: voice.isPlaying ? 'italic' : 'normal',
+                  }}>
+                    {voice.aiText}
+                  </p>
+                </div>
+                {voice.isPlaying && (
+                  <div style={{
+                    position: 'absolute', bottom: 8, right: 12,
+                    display: 'flex', gap: 3, alignItems: 'flex-end',
+                  }}>
+                    {[4, 8, 12, 8, 4].map((h, i) => (
+                      <div key={i} style={{
+                        width: 3, height: h,
+                        background: 'var(--color-accent-blue)',
+                        borderRadius: 2,
+                        animation: `bounce 0.8s ease-in-out ${i * 0.1}s infinite alternate`,
+                      }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Status indicators */}
+            <div style={{ height: 24, display: 'flex', alignItems: 'center' }}>
               {voice.isPlaying && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-blue)' }}>
-                  <span style={{ animation: 'bounce 1s infinite' }}>🔊</span> AI Speaking...
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-blue)', fontSize: 'var(--text-sm)' }}>
+                  <span>🔊</span> Alex is speaking...
                 </div>
               )}
-              {voice.isProcessing && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)' }}>
+              {voice.isProcessing && !voice.isPlaying && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>
                   <span style={{
-                    width: 16, height: 16,
+                    width: 14, height: 14,
                     border: '2px solid var(--color-text-muted)',
                     borderTopColor: 'var(--color-accent-blue)',
                     borderRadius: '50%',
                     animation: 'spin 0.6s linear infinite',
                     display: 'inline-block',
-                  }} /> Processing...
+                  }} /> Thinking...
                 </div>
               )}
             </div>
 
+            {/* Mic button */}
             <button
               className={`btn ${voice.isRecording ? 'btn-outline' : 'btn-primary'}`}
               style={{
                 width: 120, height: 120, borderRadius: '50%',
                 fontSize: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: voice.isRecording ? `0 0 ${20 + voice.volume * 40}px rgba(239,68,68,${0.5 + voice.volume * 0.5})` : 'none',
+                boxShadow: voice.isRecording
+                  ? `0 0 ${20 + voice.volume * 60}px rgba(239,68,68,${0.4 + voice.volume * 0.6})`
+                  : 'none',
                 borderColor: voice.isRecording ? 'var(--color-accent-red)' : 'transparent',
-                transform: voice.isRecording ? `scale(${1 + voice.volume * 0.3})` : 'scale(1)',
+                transform: voice.isRecording ? `scale(${1 + voice.volume * 0.35})` : 'scale(1)',
                 transition: 'transform 0.05s ease-out, box-shadow 0.05s ease-out',
               }}
               onMouseDown={voice.startRecording}
@@ -455,26 +516,38 @@ export default function InterviewPage() {
             >
               🎤
             </button>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', height: 20 }}>
-              {voice.isRecording ? 'Release to send...' : (voice.isPlaying || voice.isProcessing ? '' : 'Hold to speak')}
+
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>
+              {voice.isRecording
+                ? '🔴 Recording — release to send'
+                : voice.isPlaying || voice.isProcessing
+                ? ''
+                : 'Hold to speak your answer'}
             </p>
 
-            {voice.transcript && (
-              <div style={{ width: '100%', marginTop: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-surface-hover)', borderRadius: 'var(--radius-md)' }}>
-                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-2)' }}>Transcribed Answer:</p>
-                <p style={{ fontFamily: 'var(--font-sans)' }}>{voice.transcript}</p>
-                
-                <button 
-                  className="btn btn-primary" 
-                  style={{ marginTop: 'var(--space-4)', width: '100%' }}
-                  onClick={() => {
-                    setTranscript(voice.transcript);
-                    handleSubmitAnswer(undefined, voice.transcript);
-                  }}
-                  disabled={isSubmitting}
-                >
-                  Submit Answer for Grading →
-                </button>
+            {/* Live transcript while recording */}
+            {voice.isRecording && voice.transcript && (
+              <div style={{
+                width: '100%',
+                padding: 'var(--space-3)',
+                background: 'rgba(239,68,68,0.05)',
+                border: '1px solid rgba(239,68,68,0.15)',
+                borderRadius: 'var(--radius-md)',
+              }}>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)', marginBottom: 4 }}>You:</p>
+                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{voice.transcript}</p>
+              </div>
+            )}
+
+            {(voice.error) && (
+              <div role="alert" className="form-error" style={{
+                width: '100%',
+                padding: 'var(--space-3)',
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 'var(--radius-md)',
+              }}>
+                ⚠️ {voice.error}
               </div>
             )}
           </div>
