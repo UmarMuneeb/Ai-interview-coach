@@ -102,7 +102,7 @@ provider_health(provider, status, consecutive_failures, cooldown_until,
 6. **Frontend** — onboarding, live session screen, dashboard/reports
 7. **Deployment & polish** — Vercel + Railway/Render, tests, optional eval harness
 8. **Phase 8 (Add-ons)** — Full Voice Interviewer integration (OpenAI Realtime/Gemini Live), plus additional post-MVP features.
-9. **Phase 9 (Report Generation & Skill Profile Enhancements)** — LLM-powered narrative session reports, cross-session adaptive targeting, skill-profile-aware question weighting, and question history tracking.
+9. **Phase 9 (Report Generation & Skill Profile Enhancements)** — LLM-powered narrative session reports, cross-session adaptive targeting, skill-profile-aware question weighting, question history tracking, and LLM-generated fallback/expansion for the question bank.
 
 Do not skip ahead to voice or tutor work before the text-only core loop
 (phase 2) is fully working end-to-end. The whole plan hinges on validating
