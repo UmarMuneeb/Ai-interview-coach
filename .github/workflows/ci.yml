@@ -27,7 +27,7 @@ jobs:
       run: npm ci
       
     - name: Prisma Generate
-      run: npm run turbo -- run generate
+      run: cd apps/api && npx prisma generate
       continue-on-error: true
       
     - name: Check types
