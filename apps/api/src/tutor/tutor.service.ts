@@ -14,7 +14,7 @@ export const TutorEvaluationSchema = z.object({
 export class TutorService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly providerRouter: ProviderRouterService
+    private readonly providerRouter: ProviderRouterService,
   ) {}
 
   async createAttempt(
@@ -25,7 +25,7 @@ export class TutorService {
     transcript: string,
     missingPoints: string[],
     resolved: boolean,
-    resolvedVia?: ResolvedVia
+    resolvedVia?: ResolvedVia,
   ) {
     return this.prisma.tutorAttempt.create({
       data: {
@@ -53,9 +53,20 @@ export class TutorService {
     });
   }
 
-  async generateHint(sessionId: string, questionPrompt: string, missingPoints: string[], attemptNumber: number, previousAnswer: string) {
-    const hintLevelStr = attemptNumber === 1 ? 'Subtle hint' : attemptNumber === 2 ? 'Direct hint' : 'Give away the answer';
-    
+  async generateHint(
+    sessionId: string,
+    questionPrompt: string,
+    missingPoints: string[],
+    attemptNumber: number,
+    previousAnswer: string,
+  ) {
+    const hintLevelStr =
+      attemptNumber === 1
+        ? 'Subtle hint'
+        : attemptNumber === 2
+          ? 'Direct hint'
+          : 'Give away the answer';
+
     const prompt = `You are a strict but helpful Socratic tutor. The user is practicing an interview question.
 Question: ${questionPrompt}
 User's previous answer: ${previousAnswer}
@@ -68,13 +79,18 @@ Respond directly with what the tutor should say to the user. Keep it conversatio
     const result = await this.providerRouter.complete({
       purpose: 'tutor',
       sessionId,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     });
 
     return result.content;
   }
 
-  async evaluateTutorAnswer(sessionId: string, questionPrompt: string, missingPoints: string[], answer: string) {
+  async evaluateTutorAnswer(
+    sessionId: string,
+    questionPrompt: string,
+    missingPoints: string[],
+    answer: string,
+  ) {
     const prompt = `The user was asked an interview question and missed some points. They have provided a new answer after receiving a hint.
 Question: ${questionPrompt}
 Missing points: ${missingPoints.join(', ')}
@@ -90,12 +106,15 @@ The JSON object MUST contain:
       purpose: 'tutor',
       sessionId,
       responseSchema: TutorEvaluationSchema,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const parsed = TutorEvaluationSchema.safeParse(result.content);
     if (!parsed.success) {
-      console.log('DEBUG [TutorService] LLM returned invalid JSON:', result.content);
+      console.log(
+        'DEBUG [TutorService] LLM returned invalid JSON:',
+        result.content,
+      );
       const retryResult = await this.providerRouter.complete({
         purpose: 'tutor',
         sessionId,
@@ -103,21 +122,48 @@ The JSON object MUST contain:
         messages: [
           { role: 'user', content: prompt },
           { role: 'assistant', content: JSON.stringify(result.content) },
-          { role: 'user', content: `Your previous response failed validation: ${parsed.error.message}. Please strictly follow the schema.` }
-        ]
+          {
+            role: 'user',
+            content: `Your previous response failed validation: ${parsed.error.message}. Please strictly follow the schema.`,
+          },
+        ],
       });
       const retryParsed = TutorEvaluationSchema.safeParse(retryResult.content);
-      if (!retryParsed.success) throw new Error(`TutorEvaluationValidationError: ${retryParsed.error.message}`);
+      if (!retryParsed.success)
+        throw new Error(
+          `TutorEvaluationValidationError: ${retryParsed.error.message}`,
+        );
       return retryParsed.data;
     }
     return parsed.data;
   }
 
-  async processTutorTurn(sessionId: string, questionId: string, questionPrompt: string, missingPoints: string[], answer: string, attemptNumber: number) {
-    const evaluation = await this.evaluateTutorAnswer(sessionId, questionPrompt, missingPoints, answer);
-    
+  async processTutorTurn(
+    sessionId: string,
+    questionId: string,
+    questionPrompt: string,
+    missingPoints: string[],
+    answer: string,
+    attemptNumber: number,
+  ) {
+    const evaluation = await this.evaluateTutorAnswer(
+      sessionId,
+      questionPrompt,
+      missingPoints,
+      answer,
+    );
+
     if (evaluation.resolved || attemptNumber >= 3) {
-      await this.createAttempt(sessionId, questionId, attemptNumber, attemptNumber, answer, evaluation.missingPoints, evaluation.resolved, evaluation.resolved ? 'explained' : undefined);
+      await this.createAttempt(
+        sessionId,
+        questionId,
+        attemptNumber,
+        attemptNumber,
+        answer,
+        evaluation.missingPoints,
+        evaluation.resolved,
+        evaluation.resolved ? 'explained' : undefined,
+      );
       return {
         resolved: evaluation.resolved,
         reasoning: evaluation.reasoning,
@@ -125,9 +171,23 @@ The JSON object MUST contain:
       };
     }
 
-    const nextHint = await this.generateHint(sessionId, questionPrompt, evaluation.missingPoints, attemptNumber + 1, answer);
+    const nextHint = await this.generateHint(
+      sessionId,
+      questionPrompt,
+      evaluation.missingPoints,
+      attemptNumber + 1,
+      answer,
+    );
 
-    await this.createAttempt(sessionId, questionId, attemptNumber, attemptNumber, answer, evaluation.missingPoints, false);
+    await this.createAttempt(
+      sessionId,
+      questionId,
+      attemptNumber,
+      attemptNumber,
+      answer,
+      evaluation.missingPoints,
+      false,
+    );
 
     return {
       resolved: false,

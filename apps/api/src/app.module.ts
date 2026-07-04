@@ -13,7 +13,18 @@ import { SkillProfileModule } from './skill-profile/skill-profile.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [AuthModule, QuestionsModule, SessionsModule, AssessmentModule, TutorModule, ProviderRouterModule, ProviderHealthModule, VoiceModule, SkillProfileModule, PrismaModule],
+  imports: [
+    AuthModule,
+    QuestionsModule,
+    SessionsModule,
+    AssessmentModule,
+    TutorModule,
+    ProviderRouterModule,
+    ProviderHealthModule,
+    VoiceModule,
+    SkillProfileModule,
+    PrismaModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

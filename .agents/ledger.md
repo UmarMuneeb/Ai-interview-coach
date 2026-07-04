@@ -109,3 +109,23 @@ Status: in-progress
   Done when: `.github/workflows` directory contains workflow that runs lint + test on PR. Workflow passes on current codebase.
   Risk: normal
   Completed: 2026-07-04
+
+## Phase 8: Add-ons & Polish
+Status: unstarted
+
+- [x] Step: Implement Voice Interviewer (Real-time Audio)
+  Module: apps/web/app/interview, apps/api/src/voice
+  Done when: The live interview screen supports a "Start Voice" button that connects to the VoiceGateway via WebSockets, allowing the user to speak their answers.
+  Risk: high
+  Completed: 2026-07-04
+
+- [x] Step: Polish Voice Interviewer UX (Visualizer, Auto-ask, Feedback)
+  Module: apps/web/app/interview, apps/web/hooks/useVoiceInterviewer, apps/api/src/provider-router
+  Done when: The mic button shows a volume visualizer, the AI automatically asks the question when Voice mode starts, and releasing the mic triggers a clear loading/response state.
+  Risk: normal
+  Completed: 2026-07-04
+
+- [ ] Step: Migrate to Gemini Multimodal Live API
+  Module: apps/api/src/provider-router, apps/web/hooks/useVoiceInterviewer
+  Done when: The voice session connects via the @google/genai Live client, streams 16kHz PCM audio, and plays 24kHz AI audio correctly without OpenAI keys.
+  Risk: high

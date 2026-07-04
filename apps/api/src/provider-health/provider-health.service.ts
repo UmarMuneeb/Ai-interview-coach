@@ -7,25 +7,37 @@ export class ProviderHealthService {
 
   async checkHealth(provider: string): Promise<boolean> {
     const health = await this.prisma.providerHealth.findUnique({
-      where: { provider }
+      where: { provider },
     });
-    
+
     if (!health) {
       await this.prisma.providerHealth.create({
-        data: { provider, status: 'healthy', consecutive_failures: 0 }
+        data: { provider, status: 'healthy', consecutive_failures: 0 },
       });
       return true;
     }
 
-    if (health.status === 'down' && health.cooldown_until && health.cooldown_until > new Date()) {
+    if (
+      health.status === 'down' &&
+      health.cooldown_until &&
+      health.cooldown_until > new Date()
+    ) {
       return false; // Circuit breaker open
     }
 
     // Reset if cooldown expired
-    if (health.status === 'down' && health.cooldown_until && health.cooldown_until <= new Date()) {
+    if (
+      health.status === 'down' &&
+      health.cooldown_until &&
+      health.cooldown_until <= new Date()
+    ) {
       await this.prisma.providerHealth.update({
         where: { provider },
-        data: { status: 'healthy', consecutive_failures: 0, cooldown_until: null }
+        data: {
+          status: 'healthy',
+          consecutive_failures: 0,
+          cooldown_until: null,
+        },
       });
       return true;
     }
@@ -34,9 +46,11 @@ export class ProviderHealthService {
   }
 
   async recordFailure(provider: string, errorMsg: string): Promise<void> {
-    const health = await this.prisma.providerHealth.findUnique({ where: { provider } });
+    const health = await this.prisma.providerHealth.findUnique({
+      where: { provider },
+    });
     const failures = (health?.consecutive_failures || 0) + 1;
-    
+
     // Trip breaker after 3 failures
     const isDown = failures >= 3;
     const cooldown_until = isDown ? new Date(Date.now() + 5 * 60 * 1000) : null;
@@ -47,15 +61,15 @@ export class ProviderHealthService {
         consecutive_failures: failures,
         status: isDown ? 'down' : 'degraded',
         last_error: errorMsg,
-        cooldown_until
+        cooldown_until,
       },
       create: {
         provider,
         consecutive_failures: failures,
         status: isDown ? 'down' : 'degraded',
         last_error: errorMsg,
-        cooldown_until
-      }
+        cooldown_until,
+      },
     });
   }
 
@@ -63,7 +77,12 @@ export class ProviderHealthService {
     // Only update if it had failures
     await this.prisma.providerHealth.updateMany({
       where: { provider, consecutive_failures: { gt: 0 } },
-      data: { status: 'healthy', consecutive_failures: 0, cooldown_until: null, last_error: null }
+      data: {
+        status: 'healthy',
+        consecutive_failures: 0,
+        cooldown_until: null,
+        last_error: null,
+      },
     });
   }
 
@@ -73,7 +92,7 @@ export class ProviderHealthService {
     sessionId: string,
     tokensIn: number,
     tokensOut: number,
-    costUsd: number
+    costUsd: number,
   ) {
     return this.prisma.providerUsage.create({
       data: {
@@ -83,8 +102,8 @@ export class ProviderHealthService {
         tokens_in: tokensIn,
         tokens_out: tokensOut,
         audio_seconds: 0,
-        cost_usd: costUsd
-      }
+        cost_usd: costUsd,
+      },
     });
   }
 }

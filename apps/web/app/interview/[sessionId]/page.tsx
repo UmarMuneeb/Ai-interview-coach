@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '../../components/AppLayout';
+import { useVoiceInterviewer } from '../../../hooks/useVoiceInterviewer';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Phase = 'loading' | 'interview' | 'transitioning' | 'error';
+type Phase = 'loading' | 'ready' | 'interview' | 'transitioning' | 'error';
 type Classification = 'correct' | 'incorrect' | 'partial' | 'misunderstood' | 'evasive';
 
 interface Question {
@@ -55,6 +56,18 @@ export default function InterviewPage() {
   const [isEndingSession, setIsEndingSession] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const voicePrompt = question ? `You are an AI Interview Coach conducting a technical interview. The current question you must ask and evaluate is: "${question.prompt}". Keep your responses concise.` : undefined;
+  const voice = useVoiceInterviewer(
+    sessionId,
+    voicePrompt
+  );
+
+  useEffect(() => {
+    if (voice.isVoiceMode && voicePrompt) {
+      voice.updatePrompt(voicePrompt);
+    }
+  }, [voice.isVoiceMode, voicePrompt, voice.updatePrompt]);
+
   const getToken = useCallback(() => {
     const token = localStorage.getItem('ai_coach_token');
     if (!token) { router.push('/login'); return null; }
@@ -71,10 +84,16 @@ export default function InterviewPage() {
       if (!res.ok) throw new Error('Failed to fetch question');
       const q = await res.json();
       setQuestion(q);
-      setPhase('interview');
+      
+      if (answeredCount === 0) {
+        setPhase('ready');
+      } else {
+        setPhase('interview');
+        setTimeout(() => textareaRef.current?.focus(), 100);
+      }
+      
       setTranscript('');
       setLastResult(null);
-      setTimeout(() => textareaRef.current?.focus(), 100);
     } catch (err: any) {
       setErrorMsg(err.message);
       setPhase('error');
@@ -89,9 +108,10 @@ export default function InterviewPage() {
     fetchQuestion();
   }, [sessionId, router, fetchQuestion]);
 
-  async function handleSubmitAnswer(e: React.FormEvent) {
-    e.preventDefault();
-    if (!transcript.trim() || !question || isSubmitting) return;
+  async function handleSubmitAnswer(e?: React.FormEvent, overrideTranscript?: string) {
+    if (e) e.preventDefault();
+    const finalTranscript = overrideTranscript || transcript;
+    if (!finalTranscript.trim() || !question || isSubmitting) return;
 
     const token = getToken();
     if (!token) return;
@@ -101,7 +121,7 @@ export default function InterviewPage() {
       const res = await fetch(`${API_URL}/sessions/${sessionId}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ question, transcript: transcript.trim() }),
+        body: JSON.stringify({ question, transcript: finalTranscript.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -117,7 +137,15 @@ export default function InterviewPage() {
     }
   }
 
+  // Effect to auto-submit when voice transcript changes and is finalized
+  useEffect(() => {
+    if (voice.transcript && !voice.isRecording && !voice.isPlaying && !voice.isProcessing && !isSubmitting && !lastResult) {
+      handleSubmitAnswer(undefined, voice.transcript);
+    }
+  }, [voice.transcript, voice.isRecording, voice.isPlaying, voice.isProcessing, isSubmitting, lastResult]);
+
   function handleNextQuestion() {
+    voice.setTranscript('');
     if (lastResult?.nextQuestion) {
       setQuestion(lastResult.nextQuestion);
       setTranscript('');
@@ -174,6 +202,34 @@ export default function InterviewPage() {
     );
   }
 
+  if (phase === 'ready') {
+    return (
+      <AppLayout>
+        <div className="animate-fade-in" style={{ minHeight: 'calc(100vh - 65px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: 'var(--space-8)', textAlign: 'center', maxWidth: 420 }}>
+            <div style={{ fontSize: 40, marginBottom: 'var(--space-4)' }}>🎙️</div>
+            <h2 style={{ marginBottom: 'var(--space-3)' }}>Ready to begin?</h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)', lineHeight: 1.5 }}>
+              This interview is conducted via voice by default. Ensure your microphone is connected and working.
+            </p>
+            <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => {
+               setPhase('interview');
+               voice.startVoiceSession();
+            }}>
+               Start Voice Interview
+            </button>
+            <button className="btn btn-ghost" style={{ marginTop: 'var(--space-3)', width: '100%' }} onClick={() => {
+               setPhase('interview');
+               setTimeout(() => textareaRef.current?.focus(), 100);
+            }}>
+               Continue in Text Mode
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   const cfg = lastResult ? CLASSIFICATION_CONFIG[lastResult.answer.classification] : null;
 
   return (
@@ -209,15 +265,24 @@ export default function InterviewPage() {
             </span>
             <span className="badge badge-blue">{answeredCount} answered</span>
           </div>
-          <button
-            id="end-interview-btn"
-            className="btn btn-ghost"
-            disabled={isEndingSession}
-            onClick={handleEndInterview}
-            style={{ fontSize: 'var(--text-sm)' }}
-          >
-            {isEndingSession ? 'Ending…' : 'End Interview →'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            {!voice.isVoiceMode ? (
+              <button className="btn btn-outline" onClick={voice.startVoiceSession} style={{ fontSize: 'var(--text-sm)' }}>
+                🎙️ Switch to Voice
+              </button>
+            ) : (
+              <span className="badge badge-green">🎙️ Voice Mode Active</span>
+            )}
+            <button
+              id="end-interview-btn"
+              className="btn btn-ghost"
+              disabled={isEndingSession}
+              onClick={handleEndInterview}
+              style={{ fontSize: 'var(--text-sm)' }}
+            >
+              {isEndingSession ? 'Ending…' : 'End Interview →'}
+            </button>
+          </div>
         </div>
 
         {/* Question card */}
@@ -283,7 +348,7 @@ export default function InterviewPage() {
         )}
 
         {/* Answer form */}
-        {!lastResult && (
+        {!lastResult && !voice.isVoiceMode && (
           <form
             id="answer-form"
             onSubmit={handleSubmitAnswer}
@@ -346,6 +411,73 @@ export default function InterviewPage() {
               </button>
             </div>
           </form>
+        )}
+
+        {/* Voice UI */}
+        {!lastResult && voice.isVoiceMode && (
+          <div className="card animate-fade-in" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)', flex: 1, justifyContent: 'center' }}>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+              {voice.isPlaying && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-blue)' }}>
+                  <span style={{ animation: 'bounce 1s infinite' }}>🔊</span> AI Speaking...
+                </div>
+              )}
+              {voice.isProcessing && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)' }}>
+                  <span style={{
+                    width: 16, height: 16,
+                    border: '2px solid var(--color-text-muted)',
+                    borderTopColor: 'var(--color-accent-blue)',
+                    borderRadius: '50%',
+                    animation: 'spin 0.6s linear infinite',
+                    display: 'inline-block',
+                  }} /> Processing...
+                </div>
+              )}
+            </div>
+
+            <button
+              className={`btn ${voice.isRecording ? 'btn-outline' : 'btn-primary'}`}
+              style={{
+                width: 120, height: 120, borderRadius: '50%',
+                fontSize: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: voice.isRecording ? `0 0 ${20 + voice.volume * 40}px rgba(239,68,68,${0.5 + voice.volume * 0.5})` : 'none',
+                borderColor: voice.isRecording ? 'var(--color-accent-red)' : 'transparent',
+                transform: voice.isRecording ? `scale(${1 + voice.volume * 0.3})` : 'scale(1)',
+                transition: 'transform 0.05s ease-out, box-shadow 0.05s ease-out',
+              }}
+              onMouseDown={voice.startRecording}
+              onMouseUp={voice.stopRecording}
+              onTouchStart={voice.startRecording}
+              onTouchEnd={voice.stopRecording}
+              disabled={voice.isPlaying || voice.isProcessing}
+            >
+              🎤
+            </button>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', height: 20 }}>
+              {voice.isRecording ? 'Release to send...' : (voice.isPlaying || voice.isProcessing ? '' : 'Hold to speak')}
+            </p>
+
+            {voice.transcript && (
+              <div style={{ width: '100%', marginTop: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-surface-hover)', borderRadius: 'var(--radius-md)' }}>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-2)' }}>Transcribed Answer:</p>
+                <p style={{ fontFamily: 'var(--font-sans)' }}>{voice.transcript}</p>
+                
+                <button 
+                  className="btn btn-primary" 
+                  style={{ marginTop: 'var(--space-4)', width: '100%' }}
+                  onClick={() => {
+                    setTranscript(voice.transcript);
+                    handleSubmitAnswer(undefined, voice.transcript);
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Submit Answer for Grading →
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </AppLayout>

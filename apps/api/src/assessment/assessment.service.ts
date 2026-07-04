@@ -3,7 +3,13 @@ import { ProviderRouterService } from '../provider-router/provider-router.servic
 import { z } from 'zod';
 
 export const ClassificationSchema = z.object({
-  classification: z.enum(['correct', 'incorrect', 'partial', 'misunderstood', 'evasive']),
+  classification: z.enum([
+    'correct',
+    'incorrect',
+    'partial',
+    'misunderstood',
+    'evasive',
+  ]),
   confidence: z.number().min(0).max(1),
   reasoning: z.string(),
   missingPoints: z.array(z.string()).optional(),
@@ -13,7 +19,11 @@ export const ClassificationSchema = z.object({
 export class AssessmentService {
   constructor(private readonly providerRouter: ProviderRouterService) {}
 
-  async classifyAnswer(answer: string, rubricPoints: string[], sessionId?: string) {
+  async classifyAnswer(
+    answer: string,
+    rubricPoints: string[],
+    sessionId?: string,
+  ) {
     const prompt = `Classify this answer based on the rubric points. You MUST return a valid JSON object exactly matching the schema.
 The JSON object MUST contain:
 - 'classification': string, exactly one of ["correct", "incorrect", "partial", "misunderstood", "evasive"].
@@ -23,7 +33,7 @@ The JSON object MUST contain:
 
 Answer: ${answer}
 Rubric: ${rubricPoints.join(', ')}`;
-    
+
     const result = await this.providerRouter.complete({
       purpose: 'assessment',
       sessionId: sessionId,
@@ -33,7 +43,10 @@ Rubric: ${rubricPoints.join(', ')}`;
 
     const parsed = ClassificationSchema.safeParse(result.content);
     if (!parsed.success) {
-      console.log('DEBUG [AssessmentService] LLM returned invalid JSON:', result.content);
+      console.log(
+        'DEBUG [AssessmentService] LLM returned invalid JSON:',
+        result.content,
+      );
       // Retry once with an explicit correction prompt
       const retryResult = await this.providerRouter.complete({
         purpose: 'assessment',
@@ -42,13 +55,18 @@ Rubric: ${rubricPoints.join(', ')}`;
         messages: [
           { role: 'user', content: prompt },
           { role: 'assistant', content: JSON.stringify(result.content) },
-          { role: 'user', content: `Your previous response failed validation: ${parsed.error.message}. Please strictly follow the schema.` }
+          {
+            role: 'user',
+            content: `Your previous response failed validation: ${parsed.error.message}. Please strictly follow the schema.`,
+          },
         ],
       });
-      
+
       const retryParsed = ClassificationSchema.safeParse(retryResult.content);
       if (!retryParsed.success) {
-        throw new Error(`AssessmentValidationError: ${retryParsed.error.message}`);
+        throw new Error(
+          `AssessmentValidationError: ${retryParsed.error.message}`,
+        );
       }
       return retryParsed.data;
     }

@@ -153,7 +153,9 @@ describe('SessionsService - New Methods', () => {
       ];
 
       mockPrismaService.session.findUnique.mockResolvedValue(mockSession);
-      mockPrismaService.skillProfile.findMany.mockResolvedValue(mockSkillProfiles);
+      mockPrismaService.skillProfile.findMany.mockResolvedValue(
+        mockSkillProfiles,
+      );
 
       const result = await service.getSessionReport('session-1');
 
@@ -173,7 +175,7 @@ describe('SessionsService - New Methods', () => {
       // Topic breakdown
       expect(result.topicBreakdown).toHaveLength(2);
       const reactBreakdown = result.topicBreakdown.find(
-        (b) => b.topic === 'React' && b.subtopic === 'Hooks',
+        (b: any) => b.topic === 'React' && b.subtopic === 'Hooks',
       );
       expect(reactBreakdown).toEqual({
         topic: 'React',

@@ -55,7 +55,9 @@ describe('SessionsController', () => {
       const result = await controller.listSessions(req);
 
       expect(result).toEqual(mockSessions);
-      expect(mockSessionsService.listUserSessions).toHaveBeenCalledWith('user-123');
+      expect(mockSessionsService.listUserSessions).toHaveBeenCalledWith(
+        'user-123',
+      );
     });
   });
 
@@ -101,7 +103,9 @@ describe('SessionsController', () => {
       const result = await controller.getSessionReport('session-1');
 
       expect(result).toEqual(mockReport);
-      expect(mockSessionsService.getSessionReport).toHaveBeenCalledWith('session-1');
+      expect(mockSessionsService.getSessionReport).toHaveBeenCalledWith(
+        'session-1',
+      );
     });
   });
 });

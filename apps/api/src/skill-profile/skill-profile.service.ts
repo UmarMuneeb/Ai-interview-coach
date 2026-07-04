@@ -5,15 +5,20 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SkillProfileService {
   constructor(private prisma: PrismaService) {}
 
-  async updateSkillProfile(userId: string, topic: string, subtopic: string, classification: string) {
+  async updateSkillProfile(
+    userId: string,
+    topic: string,
+    subtopic: string,
+    classification: string,
+  ) {
     let profile = await this.prisma.skillProfile.findUnique({
       where: {
         user_id_topic_subtopic: {
           user_id: userId,
           topic,
           subtopic,
-        }
-      }
+        },
+      },
     });
 
     if (!profile) {
@@ -22,21 +27,24 @@ export class SkillProfileService {
           user_id: userId,
           topic,
           subtopic,
-        }
+        },
       });
     }
 
     const updates: any = {};
     if (classification === 'correct') updates.correct_count = { increment: 1 };
-    else if (classification === 'incorrect' || classification === 'partial') updates.incorrect_count = { increment: 1 };
-    else if (classification === 'misunderstood') updates.misunderstood_count = { increment: 1 };
-    else if (classification === 'evasive') updates.evasive_count = { increment: 1 };
+    else if (classification === 'incorrect' || classification === 'partial')
+      updates.incorrect_count = { increment: 1 };
+    else if (classification === 'misunderstood')
+      updates.misunderstood_count = { increment: 1 };
+    else if (classification === 'evasive')
+      updates.evasive_count = { increment: 1 };
 
-    updates.mastery_score = profile.mastery_score; 
+    updates.mastery_score = profile.mastery_score;
     if (classification === 'correct') {
-        updates.mastery_score = Math.min(10.0, profile.mastery_score + 0.5);
+      updates.mastery_score = Math.min(10.0, profile.mastery_score + 0.5);
     } else {
-        updates.mastery_score = Math.max(0.0, profile.mastery_score - 0.5);
+      updates.mastery_score = Math.max(0.0, profile.mastery_score - 0.5);
     }
 
     if (updates.mastery_score < 4.0) updates.current_difficulty = 1;

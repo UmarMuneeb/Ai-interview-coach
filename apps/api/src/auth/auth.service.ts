@@ -10,7 +10,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async login(email: string, password: string): Promise<{ access_token: string }> {
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{ access_token: string }> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -25,7 +28,10 @@ export class AuthService {
     return { access_token: this.jwtService.sign(payload) };
   }
 
-  async register(email: string, password: string): Promise<{ access_token: string }> {
+  async register(
+    email: string,
+    password: string,
+  ): Promise<{ access_token: string }> {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new UnauthorizedException('Email already in use');

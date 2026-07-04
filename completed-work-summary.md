@@ -414,3 +414,16 @@ The report provides a complete audit trail for Phase 6 completion and serves as 
 
 ### Ledger State
 - Updated `.agents/ledger.md` marking the E2E testing step as `[x]` (Deferred to local testing). Phase 7 is now fully complete!
+
+### Phase 8: Add-ons & Polish - Voice Interviewer
+- Configured VoiceGateway to manage WebSocket sessions and delegate OpenAI Realtime streams to ProviderRouterService.
+- Installed socket.io-client in apps/web.
+- Created useVoiceInterviewer custom hook integrating Web Audio API (downsampling via ScriptProcessor) for mic capture and base64 chunking over socket.io.
+- Updated interview screen UI to support real-time voice mode toggle, visualizing AI speech and live transcripts.
+- Passed session question prompt to OpenAI via session.update to ensure the Voice model knows the interview context.
+
+### Phase 8: Add-ons & Polish - Voice UX Polish
+- Added RMS volume extraction to AudioWorklet processor and wired it to dynamically scale and highlight the microphone button when the user speaks.
+- Implemented 'Processing...' UI state when the microphone is released to provide clear feedback before AI audio arrives.
+- Added auto-submit behavior to immediately grade answers when Voice transcripts finish arriving.
+- Added conversation.item.create nudges in ProviderRouterService so the AI immediately reads out the question upon connecting or advancing.

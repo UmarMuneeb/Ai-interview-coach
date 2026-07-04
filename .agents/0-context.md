@@ -97,10 +97,11 @@ provider_health(provider, status, consecutive_failures, cooldown_until,
 1. **Foundation** — auth, Postgres schema, Prisma setup
 2. **Core loop (text-only MVP)** — single question source, assessment engine, session + skill-profile logic
 3. **Expansion** — multi-DB aggregator, LLM provider fallback router, provider health/cost tracking
-4. **Voice** — OpenAI Realtime / Gemini Live behind the shared interface, adaptive difficulty, session pacing
+4. **Voice** — *[DEFERRED TO PHASE 8]* Infrastructure built, but frontend integration deferred to post-MVP.
 5. **Feedback tutor mode** — persona switch, Socratic retry loop, tutor schema
 6. **Frontend** — onboarding, live session screen, dashboard/reports
 7. **Deployment & polish** — Vercel + Railway/Render, tests, optional eval harness
+8. **Phase 8 (Add-ons)** — Full Voice Interviewer integration (OpenAI Realtime/Gemini Live), plus additional post-MVP features.
 
 Do not skip ahead to voice or tutor work before the text-only core loop
 (phase 2) is fully working end-to-end. The whole plan hinges on validating

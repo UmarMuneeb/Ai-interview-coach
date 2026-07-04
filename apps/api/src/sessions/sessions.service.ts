@@ -16,7 +16,13 @@ export class SessionsService {
     private tutorService: TutorService,
   ) {}
 
-  async createSession(userId: string, field: string, phase: string, targetDuration: number, questionsPlanned: number) {
+  async createSession(
+    userId: string,
+    field: string,
+    phase: string,
+    targetDuration: number,
+    questionsPlanned: number,
+  ) {
     return this.prisma.session.create({
       data: {
         user_id: userId,
@@ -35,11 +41,21 @@ export class SessionsService {
     return session;
   }
 
-  async submitAnswer(sessionId: string, question: Question, transcript: string) {
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+  async submitAnswer(
+    sessionId: string,
+    question: Question,
+    transcript: string,
+  ) {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
     if (!session) throw new NotFoundException('Session not found');
 
-    const classificationResult = await this.assessmentService.classifyAnswer(transcript, question.rubric_points, sessionId);
+    const classificationResult = await this.assessmentService.classifyAnswer(
+      transcript,
+      question.rubric_points,
+      sessionId,
+    );
 
     // Upsert the question so the foreign key constraint passes
     await this.prisma.question.upsert({
@@ -57,18 +73,21 @@ export class SessionsService {
         confidence: classificationResult.confidence,
         reasoning: classificationResult.reasoning,
         follow_up_asked: false,
-      }
+      },
     });
 
     const profile = await this.skillProfileService.updateSkillProfile(
       session.user_id,
       question.topic,
       question.subtopic,
-      classificationResult.classification
+      classificationResult.classification,
     );
 
     // Dynamic pacing: fetch the next question matching the new difficulty!
-    const nextQuestion = await this.questionsService.getMockQuestion(question.topic, profile.current_difficulty);
+    const nextQuestion = await this.questionsService.getMockQuestion(
+      question.topic,
+      profile.current_difficulty,
+    );
 
     return {
       answer,
@@ -77,7 +96,9 @@ export class SessionsService {
   }
 
   async transitionToTutorPhase(sessionId: string) {
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
     if (!session) throw new NotFoundException('Session not found');
 
     await this.prisma.session.update({
@@ -89,7 +110,9 @@ export class SessionsService {
   }
 
   async getTutorState(sessionId: string) {
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
     if (!session || session.phase !== 'tutor') {
       throw new NotFoundException('Session not found or not in tutor phase');
     }
@@ -98,20 +121,27 @@ export class SessionsService {
     const allWeak = await this.prisma.sessionAnswer.findMany({
       where: { session_id: sessionId, classification: { not: 'correct' } },
       include: { question: true },
-      orderBy: { timestamp: 'asc' }
+      orderBy: { timestamp: 'asc' },
     });
 
     for (const weak of allWeak) {
-      const weakAttempts = await this.tutorService.getAttempts(sessionId, weak.question_id);
-      const isResolved = weakAttempts.some(a => a.resolved) || weakAttempts.length >= 3;
-      
+      const weakAttempts = await this.tutorService.getAttempts(
+        sessionId,
+        weak.question_id,
+      );
+      const isResolved =
+        weakAttempts.some((a) => a.resolved) || weakAttempts.length >= 3;
+
       if (!isResolved) {
         // This is the active tutor question
-        const latestAttempt = weakAttempts.length > 0 ? weakAttempts[weakAttempts.length - 1] : null;
-        return { 
+        const latestAttempt =
+          weakAttempts.length > 0
+            ? weakAttempts[weakAttempts.length - 1]
+            : null;
+        return {
           weakAnswer: weak,
           attempts: weakAttempts.length,
-          latestHint: latestAttempt ? (latestAttempt as any).hint : null // For MVP we need to fetch the hint, but Prisma schema doesn't have a hint field. Wait! 
+          latestHint: latestAttempt ? (latestAttempt as any).hint : null, // For MVP we need to fetch the hint, but Prisma schema doesn't have a hint field. Wait!
         };
       }
     }
@@ -120,15 +150,23 @@ export class SessionsService {
     return { weakAnswer: null };
   }
 
-  async submitTutorAnswer(sessionId: string, questionId: string, transcript: string) {
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
-    if (!session || session.phase !== 'tutor') throw new NotFoundException('Session not found or not in tutor phase');
+  async submitTutorAnswer(
+    sessionId: string,
+    questionId: string,
+    transcript: string,
+  ) {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session || session.phase !== 'tutor')
+      throw new NotFoundException('Session not found or not in tutor phase');
 
     const originalAnswer = await this.prisma.sessionAnswer.findFirst({
       where: { session_id: sessionId, question_id: questionId },
-      include: { question: true }
+      include: { question: true },
     });
-    if (!originalAnswer) throw new NotFoundException('Original answer not found');
+    if (!originalAnswer)
+      throw new NotFoundException('Original answer not found');
 
     const attempts = await this.tutorService.getAttempts(sessionId, questionId);
     const attemptNumber = attempts.length + 1;
@@ -143,7 +181,7 @@ export class SessionsService {
       originalAnswer.question.prompt,
       missingPoints,
       transcript,
-      attemptNumber
+      attemptNumber,
     );
 
     let nextWeakAnswer: any = null;
@@ -154,14 +192,18 @@ export class SessionsService {
       const allWeak = await this.prisma.sessionAnswer.findMany({
         where: { session_id: sessionId, classification: { not: 'correct' } },
         include: { question: true },
-        orderBy: { timestamp: 'asc' }
+        orderBy: { timestamp: 'asc' },
       });
 
       // Find the next weak question that hasn't been resolved yet
       // A question is resolved if there's a successful TutorAttempt or if attempts >= 3
       for (const weak of allWeak) {
-        const weakAttempts = await this.tutorService.getAttempts(sessionId, weak.question_id);
-        const isResolved = weakAttempts.some(a => a.resolved) || weakAttempts.length >= 3;
+        const weakAttempts = await this.tutorService.getAttempts(
+          sessionId,
+          weak.question_id,
+        );
+        const isResolved =
+          weakAttempts.some((a) => a.resolved) || weakAttempts.length >= 3;
         if (!isResolved) {
           nextWeakAnswer = weak;
           break;
@@ -172,14 +214,14 @@ export class SessionsService {
       if (!nextWeakAnswer) {
         await this.prisma.session.update({
           where: { id: sessionId },
-          data: { status: 'completed', ended_at: new Date() }
+          data: { status: 'completed', ended_at: new Date() },
         });
       }
     }
 
     return {
       tutorResult: result,
-      nextWeakAnswer
+      nextWeakAnswer,
     };
   }
 
@@ -196,7 +238,7 @@ export class SessionsService {
         ended_at: true,
         target_duration_minutes: true,
         questions_planned: true,
-      }
+      },
     });
   }
 
@@ -205,47 +247,65 @@ export class SessionsService {
       where: { id: sessionId },
       include: {
         session_answers: {
-          include: { question: true }
-        }
-      }
+          include: { question: true },
+        },
+      },
     });
 
     if (!session) throw new NotFoundException('Session not found');
 
     // Get skill profile data for this user
     const skillProfiles = await this.prisma.skillProfile.findMany({
-      where: { user_id: session.user_id }
+      where: { user_id: session.user_id },
     });
 
     // Calculate summary statistics
     const answerStats = {
       total: session.session_answers.length,
-      correct: session.session_answers.filter(a => a.classification === 'correct').length,
-      incorrect: session.session_answers.filter(a => a.classification === 'incorrect').length,
-      partial: session.session_answers.filter(a => a.classification === 'partial').length,
-      misunderstood: session.session_answers.filter(a => a.classification === 'misunderstood').length,
-      evasive: session.session_answers.filter(a => a.classification === 'evasive').length,
+      correct: session.session_answers.filter(
+        (a) => a.classification === 'correct',
+      ).length,
+      incorrect: session.session_answers.filter(
+        (a) => a.classification === 'incorrect',
+      ).length,
+      partial: session.session_answers.filter(
+        (a) => a.classification === 'partial',
+      ).length,
+      misunderstood: session.session_answers.filter(
+        (a) => a.classification === 'misunderstood',
+      ).length,
+      evasive: session.session_answers.filter(
+        (a) => a.classification === 'evasive',
+      ).length,
     };
 
     // Group by topic/subtopic
-    const topicBreakdown = session.session_answers.reduce((acc: any, answer) => {
-      const key = `${answer.question.topic}/${answer.question.subtopic}`;
-      if (!acc[key]) {
-        acc[key] = { correct: 0, total: 0, topic: answer.question.topic, subtopic: answer.question.subtopic };
-      }
-      acc[key].total++;
-      if (answer.classification === 'correct') acc[key].correct++;
-      return acc;
-    }, {});
+    const topicBreakdown = session.session_answers.reduce(
+      (acc: any, answer) => {
+        const key = `${answer.question.topic}/${answer.question.subtopic}`;
+        if (!acc[key]) {
+          acc[key] = {
+            correct: 0,
+            total: 0,
+            topic: answer.question.topic,
+            subtopic: answer.question.subtopic,
+          };
+        }
+        acc[key].total++;
+        if (answer.classification === 'correct') acc[key].correct++;
+        return acc;
+      },
+      {},
+    );
 
     // Identify strengths and weaknesses
-    const breakdown = Object.values(topicBreakdown) as any[];
+    const breakdown = Object.values(topicBreakdown);
     const strengths = breakdown
-      .filter(b => b.correct / b.total >= 0.7)
-      .map(b => `${b.topic} / ${b.subtopic}`);
+      .filter((b: any) => b.correct / b.total >= 0.7)
+      .map((b: any) => `${b.topic} / ${b.subtopic}`);
     const weaknesses = breakdown
-      .filter(b => b.correct / b.total < 0.5)
-      .map(b => `${b.topic} / ${b.subtopic}`);
+      .filter((b: any) => b.correct / b.total < 0.5)
+      .map((b: any) => `${b.topic} / ${b.subtopic}`);
 
     return {
       session: {
@@ -260,7 +320,7 @@ export class SessionsService {
       strengths,
       weaknesses,
       topicBreakdown: breakdown,
-      skillProfiles: skillProfiles.map(sp => ({
+      skillProfiles: skillProfiles.map((sp) => ({
         topic: sp.topic,
         subtopic: sp.subtopic,
         masteryScore: sp.mastery_score,

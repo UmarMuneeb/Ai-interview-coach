@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Param, Body, Request, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  Request,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SessionsService } from './sessions.service';
 
@@ -52,7 +61,10 @@ export class SessionsController {
   }
 
   @Post(':id/answer')
-  async submitAnswer(@Param('id') sessionId: string, @Body() body: SubmitAnswerDto) {
+  async submitAnswer(
+    @Param('id') sessionId: string,
+    @Body() body: SubmitAnswerDto,
+  ) {
     if (!body.question || !body.transcript) {
       throw new BadRequestException('question and transcript are required');
     }
@@ -60,7 +72,11 @@ export class SessionsController {
       ...body.question,
       last_refreshed_at: new Date(body.question.last_refreshed_at),
     } as any;
-    return this.sessionsService.submitAnswer(sessionId, question, body.transcript);
+    return this.sessionsService.submitAnswer(
+      sessionId,
+      question,
+      body.transcript,
+    );
   }
 
   @Get(':id/tutor-state')
@@ -74,11 +90,18 @@ export class SessionsController {
   }
 
   @Post(':id/tutor-answer')
-  async submitTutorAnswer(@Param('id') sessionId: string, @Body() body: SubmitTutorAnswerDto) {
+  async submitTutorAnswer(
+    @Param('id') sessionId: string,
+    @Body() body: SubmitTutorAnswerDto,
+  ) {
     if (!body.questionId || !body.transcript) {
       throw new BadRequestException('questionId and transcript are required');
     }
-    return this.sessionsService.submitTutorAnswer(sessionId, body.questionId, body.transcript);
+    return this.sessionsService.submitTutorAnswer(
+      sessionId,
+      body.questionId,
+      body.transcript,
+    );
   }
 
   @Get()
