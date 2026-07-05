@@ -27,7 +27,10 @@ export class SessionsService {
     targetDuration: number,
     questionsPlanned: number,
   ) {
-    return this.prisma.session.create({
+    // Fetch user's weak areas for adaptive question targeting
+    const weakAreas = await this.skillProfileService.getWeakAreas(userId);
+
+    const session = await this.prisma.session.create({
       data: {
         user_id: userId,
         field,
@@ -37,6 +40,12 @@ export class SessionsService {
         questions_planned: questionsPlanned,
       },
     });
+
+    // Return session + weak topic guidance so question selection can prioritize them
+    return {
+      ...session,
+      weakTopics: weakAreas.map((a) => ({ topic: a.topic, subtopic: a.subtopic, masteryScore: a.masteryScore })),
+    };
   }
 
   async getSession(id: string) {

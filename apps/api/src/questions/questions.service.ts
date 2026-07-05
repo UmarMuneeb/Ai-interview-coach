@@ -56,8 +56,9 @@ export class QuestionsService {
     subtopic?: string,
     difficulty?: number,
     excludeQuestionIds: string[] = [],
+    preferredTopics: Array<{ topic: string; subtopic: string }> = [],
   ): Promise<Question> {
-    // Try to find unseen question in database
+    // Build base where clause for the requested topic
     const whereClause: any = {
       topic,
       id: { notIn: excludeQuestionIds },
@@ -76,18 +77,30 @@ export class QuestionsService {
     if (availableQuestions.length > 0) {
       // Strictly prefer seed questions — only fall back to generated if no seeds available
       const seedQuestions = availableQuestions.filter((q) => q.source_db === 'seed');
-      const pool = seedQuestions.length > 0
-        ? seedQuestions.slice(0, 5)
-        : availableQuestions.slice(0, 5);
+      let pool = seedQuestions.length > 0 ? seedQuestions.slice(0, 5) : availableQuestions.slice(0, 5);
+
+      // 70/30 weak-area weighting: if preferred (weak) subtopics provided,
+      // bias toward them 70% of the time
+      if (preferredTopics.length > 0) {
+        const weakSubtopics = preferredTopics.map((p) => p.subtopic);
+        const weakPool = pool.filter((q) => weakSubtopics.includes(q.subtopic));
+        // Roll: 70% chance to pick from weak pool if it has items
+        if (weakPool.length > 0 && Math.random() < 0.7) {
+          pool = weakPool;
+        }
+      }
+
       return pool[Math.floor(Math.random() * pool.length)];
     }
 
     // No unseen questions found — generate a new one
+    // Use top weak topic for generation if available
+    const genSubtopic = preferredTopics.length > 0 ? preferredTopics[0].subtopic : (subtopic || topic);
     this.logger.log(
-      `No unseen questions for topic=${topic}, subtopic=${subtopic}, difficulty=${difficulty}. Generating...`,
+      `No unseen questions for topic=${topic}, subtopic=${genSubtopic}, difficulty=${difficulty}. Generating...`,
     );
 
-    return this.generateQuestion(topic, subtopic || topic, difficulty || 2);
+    return this.generateQuestion(topic, genSubtopic, difficulty || 2);
   }
 
   /**

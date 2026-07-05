@@ -146,10 +146,11 @@ Status: in-progress
   Risk: normal
   Completed: 2026-07-04
 
-- [ ] Step: Implement cross-session adaptive question targeting
+- [x] Step: Implement cross-session adaptive question targeting
   Module: apps/api/src/sessions, apps/api/src/skill-profile, apps/api/src/questions
   Done when: When createSession() is called, fetch user's skill profile via SkillProfileService.getWeakAreas(userId), rank topics by lowest mastery_score. Store weak areas in session metadata so question selection can prioritize them.
   Risk: normal
+  Completed: 2026-07-05
 
 - [ ] Step: Implement skill-profile-aware question weighting
   Module: apps/api/src/questions

@@ -72,6 +72,10 @@ export default function OnboardingPage() {
       }
 
       const session = await res.json();
+      // Store weak topics for adaptive question selection on the interview page
+      if (session.weakTopics && session.weakTopics.length > 0) {
+        localStorage.setItem(`weak_topics_${session.id}`, JSON.stringify(session.weakTopics));
+      }
       router.push(`/interview/${session.id}`);
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
