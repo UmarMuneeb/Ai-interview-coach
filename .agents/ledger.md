@@ -158,10 +158,11 @@ Status: in-progress
   Risk: normal
   Completed: 2026-07-05
 
-- [ ] Step: Implement question history tracking to avoid repeats
+- [x] Step: Implement question history tracking to avoid repeats
   Module: apps/api/src/questions, apps/api/src/sessions
   Done when: Before selecting a question, query session_answers to get list of question IDs already asked to this user (across all sessions for the target topic/subtopic). Filter these out of the selection pool. If no unseen questions remain in seed bank for the weak subtopic, trigger LLM-generation fallback to create a fresh question.
   Risk: high
+  Completed: 2026-07-05
 
 - [x] Step: Add SkillProfileService.getWeakAreas() method
   Module: apps/api/src/skill-profile
