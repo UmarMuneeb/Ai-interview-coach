@@ -77,7 +77,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     }
     // Extract sample rate from mime string e.g. "audio/L16;codec=pcm;rate=24000"
     const rateMatch = mimeType.match(/rate=(\d+)/);
-    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+    const sampleRate = rateMatch && rateMatch[1] ? parseInt(rateMatch[1], 10) : 24000;
     const buffer = audioContext.current.createBuffer(1, float32.length, sampleRate);
     buffer.copyToChannel(float32, 0);
     return buffer;

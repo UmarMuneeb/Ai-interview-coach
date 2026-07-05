@@ -14,6 +14,16 @@ export class SkillProfileService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Get all skill profiles for a user.
+   */
+  async getUserSkillProfile(userId: string) {
+    return this.prisma.skillProfile.findMany({
+      where: { user_id: userId },
+      orderBy: { mastery_score: 'desc' },
+    });
+  }
+
+  /**
    * Get weak areas for a user, sorted by mastery score (lowest first).
    * Used by sessions module for adaptive question targeting.
    */
