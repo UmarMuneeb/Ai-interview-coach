@@ -32,7 +32,7 @@ export class QuestionsController {
     const userId: string = req.user.userId;
 
     // Parse weak topics from JSON query param (passed from POST /sessions response)
-    let preferredTopics: Array<{ topic: string; subtopic: string }> = [];
+    let preferredTopics: Array<{ topic: string; subtopic: string; currentDifficulty?: number }> = [];
     if (weakTopicsJson) {
       try {
         preferredTopics = JSON.parse(weakTopicsJson);

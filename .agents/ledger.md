@@ -152,10 +152,11 @@ Status: in-progress
   Risk: normal
   Completed: 2026-07-05
 
-- [ ] Step: Implement skill-profile-aware question weighting
+- [x] Step: Implement skill-profile-aware question weighting
   Module: apps/api/src/questions
   Done when: QuestionsService.getNextQuestion() accepts weak topics/subtopics from session, weights selection 70% toward weak areas and 30% toward strong areas (to validate retention). Within weak subtopics, prioritize questions with higher difficulty if mastery is improving.
   Risk: normal
+  Completed: 2026-07-05
 
 - [ ] Step: Implement question history tracking to avoid repeats
   Module: apps/api/src/questions, apps/api/src/sessions

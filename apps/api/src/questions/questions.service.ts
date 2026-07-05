@@ -56,7 +56,7 @@ export class QuestionsService {
     subtopic?: string,
     difficulty?: number,
     excludeQuestionIds: string[] = [],
-    preferredTopics: Array<{ topic: string; subtopic: string }> = [],
+    preferredTopics: Array<{ topic: string; subtopic: string; currentDifficulty?: number }> = [],
   ): Promise<Question> {
     // Build base where clause for the requested topic
     const whereClause: any = {
@@ -83,10 +83,35 @@ export class QuestionsService {
       // bias toward them 70% of the time
       if (preferredTopics.length > 0) {
         const weakSubtopics = preferredTopics.map((p) => p.subtopic);
-        const weakPool = pool.filter((q) => weakSubtopics.includes(q.subtopic));
-        // Roll: 70% chance to pick from weak pool if it has items
-        if (weakPool.length > 0 && Math.random() < 0.7) {
-          pool = weakPool;
+        let weakPool = pool.filter((q) => weakSubtopics.includes(q.subtopic));
+
+        if (weakPool.length > 0) {
+          // Difficulty-aware selection: within weak subtopics, prefer questions
+          // at the skill profile's currentDifficulty level (mastery is improving
+          // → currentDifficulty is already raised by updateSkillProfile).
+          // Build a lookup: subtopic → currentDifficulty
+          const difficultyBySubtopic = new Map<string, number>();
+          for (const pt of preferredTopics) {
+            if (pt.currentDifficulty !== undefined) {
+              difficultyBySubtopic.set(pt.subtopic, pt.currentDifficulty);
+            }
+          }
+
+          // Try to narrow the weak pool to questions at the right difficulty
+          const difficultyFilteredPool = weakPool.filter((q) => {
+            const targetDiff = difficultyBySubtopic.get(q.subtopic);
+            return targetDiff === undefined || q.difficulty === targetDiff;
+          });
+
+          // Use the difficulty-filtered pool if it has items, else fall back to full weak pool
+          if (difficultyFilteredPool.length > 0) {
+            weakPool = difficultyFilteredPool;
+          }
+
+          // Roll: 70% chance to pick from weak pool
+          if (Math.random() < 0.7) {
+            pool = weakPool;
+          }
         }
       }
 

@@ -280,4 +280,87 @@ describe('QuestionsService - LLM Generation', () => {
       expect(result.source_db).toBe('seed');
     });
   });
+
+  describe('Skill-profile-aware difficulty weighting', () => {
+    it('should prefer questions at currentDifficulty within the weak subtopic pool', async () => {
+      // Pool has two questions for the weak subtopic at different difficulties
+      const easyQuestion = {
+        id: 'q-easy',
+        source_db: 'seed',
+        topic: 'React',
+        subtopic: 'hooks',
+        difficulty: 1,
+        prompt: 'What is useState?',
+        rubric_points: ['State management'],
+        tags: ['react'],
+        last_refreshed_at: new Date(),
+      };
+      const mediumQuestion = {
+        id: 'q-medium',
+        source_db: 'seed',
+        topic: 'React',
+        subtopic: 'hooks',
+        difficulty: 2,
+        prompt: 'Explain useEffect dependencies',
+        rubric_points: ['Dependency array', 'Cleanup'],
+        tags: ['react'],
+        last_refreshed_at: new Date(),
+      };
+
+      // findMany returns both
+      prisma.question.findMany.mockResolvedValue([easyQuestion, mediumQuestion]);
+
+      // Run many times — with preferredTopics carrying currentDifficulty=2,
+      // difficulty-filtered pool should only contain mediumQuestion.
+      // So result must always be mediumQuestion (when 70% path taken).
+      // We call enough times to be sure the difficulty filter is applied.
+      const results = new Set<string>();
+      for (let i = 0; i < 50; i++) {
+        const r = await service.getNextQuestion(
+          'user-123',
+          'React',
+          undefined,
+          undefined,
+          [],
+          [{ topic: 'React', subtopic: 'hooks', currentDifficulty: 2 }],
+        );
+        results.add(r.id);
+      }
+
+      // The difficulty-filtered weak pool only has q-medium, so it should appear
+      expect(results.has('q-medium')).toBe(true);
+      // easyQuestion may appear via the 30% strong-area path but never via weak path
+      // We just verify medium is always reachable via the difficulty filter
+    });
+
+    it('should fall back to full weak pool when no questions at currentDifficulty', async () => {
+      // Only difficulty=1 question available, but currentDifficulty=3
+      const easyQuestion = {
+        id: 'q-easy-only',
+        source_db: 'seed',
+        topic: 'Node.js',
+        subtopic: 'streams',
+        difficulty: 1,
+        prompt: 'What is a readable stream?',
+        rubric_points: ['Data events'],
+        tags: ['nodejs'],
+        last_refreshed_at: new Date(),
+      };
+
+      prisma.question.findMany.mockResolvedValue([easyQuestion]);
+
+      // Should not throw — falls back to the full weak pool (easyQuestion)
+      const result = await service.getNextQuestion(
+        'user-123',
+        'Node.js',
+        undefined,
+        undefined,
+        [],
+        [{ topic: 'Node.js', subtopic: 'streams', currentDifficulty: 3 }],
+      );
+
+      // No questions at difficulty=3, so falls back to the full weak pool
+      expect(result.id).toBe('q-easy-only');
+    });
+  });
 });

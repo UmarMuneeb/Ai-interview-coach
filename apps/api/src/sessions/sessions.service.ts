@@ -44,7 +44,12 @@ export class SessionsService {
     // Return session + weak topic guidance so question selection can prioritize them
     return {
       ...session,
-      weakTopics: weakAreas.map((a) => ({ topic: a.topic, subtopic: a.subtopic, masteryScore: a.masteryScore })),
+      weakTopics: weakAreas.map((a) => ({
+        topic: a.topic,
+        subtopic: a.subtopic,
+        masteryScore: a.masteryScore,
+        currentDifficulty: a.currentDifficulty,
+      })),
     };
   }
 
