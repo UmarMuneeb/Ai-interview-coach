@@ -74,8 +74,11 @@ export class QuestionsService {
     });
 
     if (availableQuestions.length > 0) {
-      // Return random from top 5 least recently used
-      const pool = availableQuestions.slice(0, Math.min(5, availableQuestions.length));
+      // Strictly prefer seed questions — only fall back to generated if no seeds available
+      const seedQuestions = availableQuestions.filter((q) => q.source_db === 'seed');
+      const pool = seedQuestions.length > 0
+        ? seedQuestions.slice(0, 5)
+        : availableQuestions.slice(0, 5);
       return pool[Math.floor(Math.random() * pool.length)];
     }
 

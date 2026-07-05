@@ -82,8 +82,9 @@ export default function InterviewPage() {
         if (sessionData.field) setSessionField(sessionData.field);
       }
 
-      // Fetch current question
-      const res = await fetch(`${API_URL}/questions/mock`, {
+      // Fetch current question (history-aware, with LLM fallback)
+      const topicParam = sessionField ? encodeURIComponent(sessionField.toLowerCase().replace(/\s+/g, '-')) : 'fullstack';
+      const res = await fetch(`${API_URL}/questions/next?sessionId=${sessionId}&topic=${topicParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch question');
@@ -95,7 +96,7 @@ export default function InterviewPage() {
         const extras: Question[] = [q];
         for (let i = 0; i < 4; i++) {
           try {
-            const r = await fetch(`${API_URL}/questions/mock`, {
+            const r = await fetch(`${API_URL}/questions/next?sessionId=${sessionId}&topic=${topicParam}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             if (r.ok) {

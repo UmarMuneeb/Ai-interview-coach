@@ -87,10 +87,22 @@ export class SessionsService {
       classificationResult.classification,
     );
 
-    // Dynamic pacing: fetch the next question matching the new difficulty!
-    const nextQuestion = await this.questionsService.getMockQuestion(
+    // Collect all question IDs this user has ever answered (to avoid repeats)
+    const allUserAnswers = await this.prisma.sessionAnswer.findMany({
+      where: {
+        session: { user_id: session.user_id },
+      },
+      select: { question_id: true },
+    });
+    const seenIds = [...new Set(allUserAnswers.map((a) => a.question_id))];
+
+    // Dynamic pacing: fetch next question at new difficulty, excluding already-seen ones
+    const nextQuestion = await this.questionsService.getNextQuestion(
+      session.user_id,
       question.topic,
+      question.subtopic,
       profile.current_difficulty,
+      seenIds,
     );
 
     return {
