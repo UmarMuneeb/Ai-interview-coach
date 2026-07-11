@@ -208,15 +208,15 @@ export default function DashboardPage() {
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
           <div>
-            <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)' }}>
-              Analytics <span className="text-gradient">Dashboard</span>
+            <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 'var(--font-bold)', letterSpacing: '-0.02em' }}>
+              Practice <span className="text-gradient">Dashboard</span>
             </h1>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>
-              Track history, analyze performance, and start new sessions.
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', marginTop: 'var(--space-1)' }}>
+              Pick up where you left off, or start a fresh session.
             </p>
           </div>
           <button onClick={fetchDashboardData} disabled={isLoading} className="btn btn-ghost">
-            {isLoading ? 'Refreshing...' : 'Refresh Data'}
+            {isLoading ? 'Refreshing...' : '↻ Refresh'}
           </button>
         </div>
 
@@ -239,11 +239,11 @@ export default function DashboardPage() {
               
               {/* QUICK START WIDGET */}
               <div className="card" style={{ padding: 'var(--space-6)', gridRow: 'span 2' }}>
-                <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>🚀 Quick Start</h2>
+                <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>Start a Session</h2>
                 <form onSubmit={handleStartSession} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
                   
                   <div className="form-group">
-                    <label className="form-label">Interview Field</label>
+                    <label className="form-label">Choose your focus area</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-2)' }}>
                       {FIELDS.map(f => (
                         <button
@@ -252,11 +252,15 @@ export default function DashboardPage() {
                           onClick={() => setField(f.id)}
                           style={{
                             padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                            border: `1px solid ${field === f.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                            background: field === f.id ? 'rgba(30, 64, 175, 0.1)' : 'var(--color-bg-input)',
+                            border: `1px solid ${field === f.id ? 'var(--color-accent-blue)' : 'var(--color-border)'}`,
+                            background: field === f.id ? 'rgba(37, 99, 235, 0.15)' : 'var(--color-bg-input)',
                             color: field === f.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                            textAlign: 'left', cursor: 'pointer', transition: 'all 150ms ease'
+                            textAlign: 'left', cursor: 'pointer',
+                            transition: 'all 150ms var(--ease-out-strong)',
+                            boxShadow: field === f.id ? '0 0 0 1px rgba(37,99,235,0.4)' : 'none',
                           }}
+                          onMouseEnter={e => { if (field !== f.id) { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(59,130,246,0.5)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(30,64,175,0.07)'; }}}
+                          onMouseLeave={e => { if (field !== f.id) { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-border)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-input)'; }}}
                         >
                           {f.icon} {f.label}
                         </button>
@@ -331,13 +335,15 @@ export default function DashboardPage() {
 
               {/* HIGH-LEVEL STATS */}
               <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Total Sessions</div>
-                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)' }}>{sessions.length}</div>
+                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 'var(--space-1)' }}>
+                  <div style={{ fontSize: 24, lineHeight: 1 }}>🗂️</div>
+                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-accent-blue-light)', lineHeight: 1 }}>{sessions.length}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textAlign: 'center' }}>Sessions<br/>completed</div>
                 </div>
-                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                  <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Skills Tracked</div>
-                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-secondary)' }}>{skills.length}</div>
+                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 'var(--space-1)' }}>
+                  <div style={{ fontSize: 24, lineHeight: 1 }}>🎯</div>
+                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-accent-cyan)', lineHeight: 1 }}>{skills.length}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textAlign: 'center' }}>Skills<br/>tracked</div>
                 </div>
               </div>
             </div>
@@ -347,8 +353,28 @@ export default function DashboardPage() {
               Session History
             </h2>
 
-            {isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Loading history...</p>}
-            {!isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No sessions completed yet.</p>}
+            {/* Skeleton loading state */}
+            {isLoading && sessions.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="skeleton" style={{ height: 64, opacity: 1 - i * 0.15 }} />
+                ))}
+              </div>
+            )}
+
+            {/* New user empty state */}
+            {!isLoading && sessions.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-4)' }}>
+                <div style={{ fontSize: 56, marginBottom: 'var(--space-4)', lineHeight: 1 }}>✦</div>
+                <h3 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-2)' }}>Ready for your first session?</h3>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', maxWidth: 340, margin: '0 auto var(--space-6)' }}>
+                  Pick a focus area and difficulty level on the left, then hit Start Session. Your first AI interviewer is waiting.
+                </p>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
+                  ← Choose a field and start
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {sessions.map((session) => {
@@ -429,16 +455,24 @@ export default function DashboardPage() {
           {/* RIGHT SIDEBAR - REVIEW QUESTIONS */}
           <aside style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', position: 'sticky', top: 'var(--space-6)' }}>
             <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
-              Requires Review
+              Needs Review
             </h2>
             {isLoading && reviewQuestions.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Loading...</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 100 }} />)}
+              </div>
             ) : reviewQuestions.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No questions need review right now.</p>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Looking good — nothing needs review yet.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                 {reviewQuestions.map(rq => (
-                  <div key={rq.answer_id} className="card" style={{ padding: 'var(--space-4)' }}>
+                  <div
+                    key={rq.answer_id}
+                    className="card"
+                    style={{ padding: 'var(--space-4)', cursor: 'pointer', transition: 'transform 150ms var(--ease-out-strong), box-shadow 150ms var(--ease-out-strong)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
                       <span className="badge" style={{ 
                         background: 'rgba(217, 119, 6, 0.1)', 
@@ -453,7 +487,7 @@ export default function DashboardPage() {
                         {new Date(rq.timestamp).toLocaleDateString()}
                       </span>
                     </div>
-                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)', marginBottom: 'var(--space-2)' }}>
+                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)', marginBottom: 'var(--space-2)' }}>
                       {rq.question.subtopic}
                     </h3>
                     <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

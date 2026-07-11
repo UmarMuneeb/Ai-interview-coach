@@ -228,10 +228,19 @@ export default function InterviewPage() {
       <AppLayout>
         <div className="animate-fade-in" style={{ minHeight: 'calc(100vh - 65px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card" style={{ padding: 'var(--space-8)', textAlign: 'center', maxWidth: 420 }}>
-            <div style={{ fontSize: 40, marginBottom: 'var(--space-4)' }}>🎙️</div>
-            <h2 style={{ marginBottom: 'var(--space-3)' }}>Ready to begin?</h2>
-            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)', lineHeight: 1.5 }}>
-              This interview is conducted via voice by default. Ensure your microphone is connected and working.
+            <div style={{ width: 56, height: 56, borderRadius: 'var(--radius-xl)', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-5)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+            </div>
+            <h2 style={{ marginBottom: 'var(--space-3)' }}>Your interviewer is ready.</h2>
+            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-2)', lineHeight: 1.5 }}>
+              Alex will ask the questions — you speak your answers naturally.
+            </p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)' }}>
+              Grant microphone access when prompted.
             </p>
             <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => {
                setPhase('interview');
@@ -419,9 +428,16 @@ export default function InterviewPage() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                Tip: Think out loud — explain your reasoning, not just the answer.
-              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                  Tip: Think out loud — explain your reasoning, not just the answer.
+                </p>
+                {transcript.trim().length > 0 && transcript.trim().length < 50 && (
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent-amber)' }}>
+                    Your answer looks short — try to explain your reasoning.
+                  </p>
+                )}
+              </div>
               <button
                 id="submit-answer-btn"
                 type="submit"
@@ -515,7 +531,12 @@ export default function InterviewPage() {
             <div style={{ height: 24, display: 'flex', alignItems: 'center' }}>
               {voice.isPlaying && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-blue)', fontSize: 'var(--text-sm)' }}>
-                  <span>🔊</span> Alex is speaking...
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 16 }}>
+                    {[3, 5, 8, 5, 3].map((h, i) => (
+                      <div key={i} style={{ width: 3, height: h, background: 'var(--color-accent-blue)', borderRadius: 2, animation: `bounce 0.8s ease-in-out ${i * 0.1}s infinite alternate` }} />
+                    ))}
+                  </div>
+                  Alex is speaking
                 </div>
               )}
               {voice.isProcessing && !voice.isPlaying && (
@@ -532,12 +553,12 @@ export default function InterviewPage() {
               )}
             </div>
 
-            {/* Mic button */}
+            {/* SVG Mic button */}
             <button
               className={`btn ${voice.isRecording ? 'btn-outline' : 'btn-primary'}`}
               style={{
                 width: 120, height: 120, borderRadius: '50%',
-                fontSize: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: voice.isRecording
                   ? `0 0 ${20 + voice.volume * 60}px rgba(239,68,68,${0.4 + voice.volume * 0.6})`
                   : 'none',
@@ -550,13 +571,18 @@ export default function InterviewPage() {
               onTouchStart={voice.startRecording}
               onTouchEnd={voice.stopRecording}
               disabled={voice.isPlaying || voice.isProcessing}
+              aria-label={voice.isRecording ? 'Recording — release to send' : 'Hold to speak your answer'}
             >
-              🎤
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
             </button>
 
             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>
               {voice.isRecording
-                ? '🔴 Recording — release to send'
+                ? 'Release to send your answer'
                 : voice.isPlaying || voice.isProcessing
                 ? ''
                 : 'Hold to speak your answer'}

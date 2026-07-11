@@ -171,10 +171,39 @@ Status: done
   Completed: 2026-07-04
 
 ## Phase 10: Dashboard Enhancements
-Status: in-progress
+Status: done
 
 - [x] Step: Implement Review Sidebar (Top 20 Incorrect Questions)
   Module: apps/api/src/questions, apps/web/app/dashboard
   Done when: Backend has an endpoint to fetch up to 20 questions the user answered incorrectly/partially. Dashboard displays them in a right sidebar.
   Risk: normal
   Completed: 2026-07-05
+
+## Phase 11: UI Polish & De-Slopification
+Status: done
+
+- [x] Step: Fix critical CSS bugs (missing .btn-outline, @keyframes bounce, hover media queries, easing tokens)
+  Module: apps/web/app/globals.css
+  Done when: .btn-outline class exists, bounce animation exists, all :hover rules are guarded by @media (hover: hover), transition tokens use cubic-bezier(0.23,1,0.32,1).
+  Risk: normal
+
+- [x] Step: Rework AppLayout navbar (logout button, remove emoji logo, add SVG brand mark)
+  Module: apps/web/app/components/AppLayout.tsx
+  Done when: Navbar has a logout button that clears token and redirects to /login. Logo no longer uses emoji. Brand mark uses text with gradient or SVG.
+  Risk: normal
+
+- [x] Step: Polish interview page (fix mic icon, remove emoji status text, add short-answer warning, improve loading state)
+  Module: apps/web/app/interview/[sessionId]/page.tsx
+  Done when: Mic button uses SVG icon. Status strings have no emoji. A yellow hint appears when answer is under 50 chars. Loading state is branded.
+  Risk: normal
+
+- [x] Step: Polish dashboard page (fix AI slop copy, add hover states, skeleton loading, empty state for new users)
+  Module: apps/web/app/dashboard/page.tsx
+  Done when: Page title and subtitle updated to human copy. Field buttons have hover transitions. Sidebar cards have hover lift effect. Loading shows skeleton cards. Empty state shows for 0 sessions.
+  Risk: normal
+
+- [x] Step: Polish login page (fix copy, add mode-switch autofocus, add floating blob animation)
+  Module: apps/web/app/login/page.tsx
+  Done when: Login subtitle is punchy human copy. Tab switching auto-focuses email field. Background blobs have a slow floating animation.
+  Risk: normal
+

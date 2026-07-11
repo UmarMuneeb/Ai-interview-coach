@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -15,6 +15,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Auto-focus email when switching modes
+  useEffect(() => {
+    document.getElementById('email')?.focus();
+  }, [mode]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -66,7 +71,7 @@ export default function LoginPage() {
       overflow: 'hidden',
       padding: 'var(--space-4)',
     }}>
-      {/* Background ambient glow */}
+      {/* Background ambient glow — slow float so the page feels alive */}
       <div aria-hidden style={{
         position: 'absolute',
         top: '-20%',
@@ -77,6 +82,7 @@ export default function LoginPage() {
         borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
         pointerEvents: 'none',
+        animation: 'float 12s ease-in-out infinite alternate',
       }} />
       <div aria-hidden style={{
         position: 'absolute',
@@ -87,6 +93,7 @@ export default function LoginPage() {
         borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(168,85,247,0.08) 0%, transparent 70%)',
         pointerEvents: 'none',
+        animation: 'float-reverse 10s ease-in-out infinite alternate',
       }} />
 
       {/* Login Card */}
@@ -98,18 +105,19 @@ export default function LoginPage() {
       }}>
         {/* Logo & Title */}
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }} className="animate-fade-in animate-delay-1">
-          <div style={{
-            width: 56,
-            height: 56,
-            borderRadius: 'var(--radius-xl)',
-            background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 28,
-            margin: '0 auto var(--space-5)',
-            boxShadow: '0 8px 32px rgba(59,130,246,0.35)',
-          }}>🎯</div>
+          {/* SVG brand mark — no emoji */}
+          <div style={{ margin: '0 auto var(--space-5)', width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+              <rect width="56" height="56" rx="14" fill="url(#loginGrad)" />
+              <path d="M18 28h6m0 0v-6m0 6v6m0-6h6m6-6v6m0 0h-6m6 0v6" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <defs>
+                <linearGradient id="loginGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#2563eb"/>
+                  <stop offset="1" stopColor="#06b6d4"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
           <h1 style={{
             fontSize: 'var(--text-3xl)',
             fontWeight: 'var(--font-bold)',
@@ -117,12 +125,12 @@ export default function LoginPage() {
             lineHeight: 1.2,
             marginBottom: 'var(--space-2)',
           }}>
-            {mode === 'login' ? 'Welcome back' : 'Get started'}
+            {mode === 'login' ? 'Welcome back' : 'Join the ranks'}
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>
             {mode === 'login'
-              ? 'Sign in to continue your interview prep'
-              : 'Create your account to begin practicing'}
+              ? 'Your next offer starts here.'
+              : 'Free forever. No credit card.'}
           </p>
         </div>
 
