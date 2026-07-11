@@ -254,4 +254,37 @@ Return a JSON object with this exact structure:
       last_refreshed_at: new Date(),
     };
   }
+
+  /**
+   * Fetch the top 20 questions the user answered incorrectly, partially, misunderstood, or evasively.
+   */
+  async getQuestionsForReview(userId: string) {
+    // Get answers that are not 'correct'
+    const answers = await this.prisma.sessionAnswer.findMany({
+      where: {
+        session: { user_id: userId },
+        classification: { in: ['incorrect', 'partial', 'misunderstood', 'evasive'] },
+      },
+      orderBy: { timestamp: 'desc' },
+      include: {
+        question: true,
+      },
+    });
+
+    // Deduplicate by question_id (Prisma distinct on joined tables can be tricky, so we do it in memory since limit is small)
+    const uniqueQuestionsMap = new Map();
+    for (const ans of answers) {
+      if (!uniqueQuestionsMap.has(ans.question_id)) {
+        uniqueQuestionsMap.set(ans.question_id, {
+          answer_id: ans.id,
+          classification: ans.classification,
+          timestamp: ans.timestamp,
+          question: ans.question,
+        });
+      }
+      if (uniqueQuestionsMap.size >= 20) break;
+    }
+
+    return Array.from(uniqueQuestionsMap.values());
+  }
 }

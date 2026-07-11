@@ -427,3 +427,167 @@ The report provides a complete audit trail for Phase 6 completion and serves as 
 - Implemented 'Processing...' UI state when the microphone is released to provide clear feedback before AI audio arrives.
 - Added auto-submit behavior to immediately grade answers when Voice transcripts finish arriving.
 - Added conversation.item.create nudges in ProviderRouterService so the AI immediately reads out the question upon connecting or advancing.
+
+---
+
+## Phase 9, Step 1: LLM-Generated Question Bank Expansion (Completed on 2026-07-05)
+
+### What was done:
+
+**Module:** pps/api/src/questions
+
+#### Core Logic (questions.service.ts — already existed, fixed and hardened)
+- getNextQuestion(userId, topic, subtopic?, difficulty?, excludeQuestionIds[]) queries the Prisma questions table for unseen questions filtered by id: { notIn: excludeQuestionIds }.
+- Strictly prefers source_db = 'seed' questions over source_db = 'generated' — if any seeds are available, only seeds go into the random-selection pool.
+- When no unseen questions exist in the DB, calls providerRouter.complete({ purpose: 'question-generation' }) with a structured Zod schema to generate a fresh question.
+- Validates the LLM response against GeneratedQuestionSchema (	opic, subtopic, difficulty 1-5, prompt, ubricPoints, 	ags).
+- Persists the generated question to the questions table with source_db: 'generated' so it accumulates for future sessions.
+- Retries once on any generation error; throws NotFoundException after 2 failed attempts.
+
+#### New Endpoint (questions.controller.ts)
+- Added GET /questions/next — JWT-guarded, accepts query params 	opic, subtopic, difficulty, sessionId.
+- Controller collects all question_ids from the requesting user's session_answers history (cross-session) and passes them as excludeQuestionIds to getNextQuestion.
+- GET /questions/mock preserved for backwards compatibility and voice pre-fetch.
+
+#### Sessions Integration (sessions.service.ts)
+- submitAnswer() now calls getNextQuestion() instead of getMockQuestion().
+- Collects all question_ids the user has ever answered (across all sessions) before selecting the next question.
+- Passes seenIds to avoid repeating any previously seen question.
+
+#### Frontend (apps/web/app/interview/[sessionId]/page.tsx)
+- etchQuestion() now calls GET /questions/next?sessionId=...&topic=... instead of GET /questions/mock.
+- Topic is derived from the session field, URL-encoded and lowercased.
+
+### Tests:
+- All 6 tests in questions.service.spec.ts pass:
+  - Generates new question when seed bank is exhausted ?
+  - Returns existing question when available (no generation) ?
+  - Excludes already-asked questions via excludeQuestionIds ?
+  - Retries once on validation failure ?
+  - Throws NotFoundException after 2 failed attempts ?
+  - Strictly prefers seed questions over generated ones ?
+
+---
+
+## Phase 9, Step 2: Cross-Session Adaptive Question Targeting (Completed on 2026-07-05)
+
+### What was done:
+
+**Modules:** pps/api/src/sessions, pps/api/src/questions, pps/web
+
+#### sessions.service.ts
+- createSession() now calls SkillProfileService.getWeakAreas(userId) before creating the session.
+- Returns { ...session, weakTopics: [{ topic, subtopic, masteryScore }] } — the weak areas ranked by mastery score (lowest = weakest).
+- Frontend receives weakTopics immediately when a session is created so it can guide question selection.
+
+#### questions.service.ts
+- getNextQuestion() now accepts a 6th param: preferredTopics: Array<{ topic, subtopic }>.
+- Implements **70/30 weak-area weighting**: when preferred (weak) subtopics are provided and questions exist for them in the current pool, there is a 70% chance of picking from that subset (encouraging weak-area drilling) and 30% from the full pool (validating retention).
+- When the seed bank is exhausted and LLM generation is triggered, it uses the top preferred subtopic for the generated question.
+
+#### questions.controller.ts
+- GET /questions/next now accepts a weakTopics query param (URL-encoded JSON array).
+- Parses it and forwards to getNextQuestion() for biased selection.
+
+#### Frontend (onboarding/page.tsx + interview/page.tsx)
+- After POST /sessions, onboarding saves weakTopics to localStorage under key weak_topics_{sessionId}.
+- interview/page.tsx reads this key and appends &weakTopics=... to /questions/next requests.
+- New sessions with no skill history (first-time users) get weakTopics: [], so selection is unbiased — correct default behavior.
+
+### Tests: All 6 questions.service.spec.ts tests pass ?
+
+---
+
+## Phase 9, Step 3: Skill-Profile-Aware Question Weighting (Completed on 2026-07-05)
+
+### What was done:
+
+**Module:** pps/api/src/questions
+
+#### questions.service.ts
+- Updated preferredTopics param type to include optional currentDifficulty?: number (populated from SkillProfile.current_difficulty).
+- Added **difficulty-aware weak pool selection**:
+  1. Identifies questions in the pool matching weak subtopics (as before).
+  2. Builds a subtopic ? currentDifficulty lookup map from preferredTopics.
+  3. Filters the weak pool to only questions at the right difficulty (q.difficulty === targetDiff).
+  4. If no questions exist at the target difficulty ? gracefully falls back to the full weak pool.
+  5. Then applies the 70% roll: picks from the difficulty-filtered weak pool 70% of the time.
+- When seed bank exhausted + LLM generation triggered: uses the top preferred subtopic for context.
+
+#### sessions.service.ts
+- createSession() now includes currentDifficulty in each weakTopics item alongside 	opic, subtopic, and masteryScore.
+
+#### questions.controller.ts
+- Updated preferredTopics type annotation to include currentDifficulty?.
+
+### Tests: 8/8 pass ?
+New tests added:
+- **'should prefer questions at currentDifficulty within the weak subtopic pool'** — runs 50 times, verifies difficulty-2 questions appear in results when currentDifficulty=2.
+- **'should fall back to full weak pool when no questions at currentDifficulty'** — verifies no crash when targetDifficulty=3 but only difficulty=1 exists; falls back gracefully.
+
+---
+
+## Phase 9, Step 4: Question History Tracking to Avoid Repeats (Completed on 2026-07-05)
+
+### What was done:
+
+**Modules:** pps/api/src/questions, pps/api/src/sessions
+
+This step audited and formally tested the question history tracking that was implemented as part of Phase 9 Step 1 (Question Bank Expansion).
+
+#### Implementation (already in place, confirmed complete):
+
+**sessions.service.ts — submitAnswer()**
+- After saving the current answer, queries 	his.prisma.sessionAnswer.findMany({ where: { session: { user_id: session.user_id } } }) — this uses the Prisma relation filter to collect ALL answered question IDs across ALL of the user's sessions (cross-session scope).
+- Deduplicates via [...new Set(...)] to handle edge cases where the same question ID appears multiple times.
+- Passes the deduplicated seenIds array as the excludeQuestionIds parameter to questionsService.getNextQuestion().
+
+**questions.service.ts — getNextQuestion()**
+- Applies id: { notIn: excludeQuestionIds } in the Prisma where clause — excludes all previously answered questions from the pool.
+- When the seed bank is exhausted (no unseen questions remain), automatically falls back to LLM generation via providerRouter.complete({ purpose: 'question-generation' }).
+
+**questions.controller.ts — GET /questions/next**
+- Also collects cross-session history for the user before calling getNextQuestion() (same pattern as sessions.service).
+
+#### Tests added (sessions.service.spec.ts — rewritten to fix pre-existing TS type errors):
+
+**New: 'SessionsService - Question History Tracking' describe block:**
+- **'should collect ALL answered question IDs across all user sessions and pass to getNextQuestion'** — verifies the exact Prisma query shape { where: { session: { user_id } } } and that getNextQuestion receives all historical IDs.
+- **'should deduplicate question IDs before passing to getNextQuestion'** — confirms duplicate IDs are collapsed to one occurrence via Set.
+- **'should return nextQuestion in response alongside answer'** — confirms the response shape { answer, nextQuestion }.
+
+**Preserved: Report generation tests** — rebuilt using plain mock objects instead of jest.Mocked<PrismaService> to eliminate the pre-existing TypeScript errors.
+
+### Tests: 14 total (8 questions + 6 sessions) — all PASS ?
+
+### Phase 9 Status: ALL STEPS COMPLETE ??
+- [x] LLM-generated Question Bank Expansion
+- [x] LLM-powered narrative session report generation
+- [x] Cross-session adaptive question targeting
+- [x] Skill-profile-aware question weighting
+- [x] Question history tracking to avoid repeats
+- [x] SkillProfileService.getWeakAreas() method
+
+---
+
+## MILESTONE: Phase 9 Complete (2026-07-05)
+
+All 6 steps of Phase 9 have been implemented, audited, tested, and committed.
+Phase 9 status updated to 'done' in ledger.md.
+
+### Full Phase 9 Summary — What was built:
+
+| Feature | Module | Status |
+|---|---|---|
+| LLM question bank expansion — generates fresh questions via provider-router when seed bank exhausted, persists to DB | apps/api/src/questions | ? |
+| LLM narrative report generation — produces readable summary when session completes, stored in session_reports | apps/api/src/sessions | ? |
+| Cross-session adaptive targeting — createSession() reads getWeakAreas(), returns weakTopics[] for question biasing | apps/api/src/sessions + skill-profile | ? |
+| 70/30 skill-profile weighting — getNextQuestion() biases 70% toward weak subtopics, 30% toward strong for retention | apps/api/src/questions | ? |
+| Difficulty-aware pool selection — within weak subtopics, prefers questions at currentDifficulty from skill profile | apps/api/src/questions | ? |
+| Cross-session history tracking — seenIds collected across all user sessions, LLM generates when all are exhausted | apps/api/src/questions + sessions | ? |
+
+### Test Coverage:
+- questions.service.spec.ts: 8 tests covering generation, exclusion, seed preference, difficulty weighting
+- sessions.service.spec.ts: 6 tests covering history tracking, deduplication, report generation
+
+### Roadmap status: Phases 1–9 complete. All planned phases are done.

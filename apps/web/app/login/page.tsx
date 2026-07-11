@@ -47,7 +47,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       localStorage.setItem('ai_coach_token', data.access_token);
-      router.push('/onboarding');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {

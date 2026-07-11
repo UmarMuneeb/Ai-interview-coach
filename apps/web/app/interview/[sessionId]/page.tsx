@@ -216,7 +216,7 @@ export default function InterviewPage() {
             <div style={{ fontSize: 40, marginBottom: 'var(--space-4)' }}>⚠️</div>
             <h2 style={{ marginBottom: 'var(--space-3)' }}>Session error</h2>
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>{errorMsg}</p>
-            <button className="btn btn-primary" onClick={() => router.push('/onboarding')}>Start new session</button>
+            <button className="btn btn-primary" onClick={() => router.push('/dashboard')}>Start new session</button>
           </div>
         </div>
       </AppLayout>

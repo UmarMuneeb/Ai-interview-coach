@@ -76,6 +76,9 @@ export default function DashboardPage() {
   const [reportsCache, setReportsCache] = useState<Record<string, Report>>({});
   const [loadingReportId, setLoadingReportId] = useState<string | null>(null);
 
+  // Review Sidebar
+  const [reviewQuestions, setReviewQuestions] = useState<any[]>([]);
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -91,9 +94,10 @@ export default function DashboardPage() {
     setError('');
 
     try {
-      const [sessionsRes, skillsRes] = await Promise.all([
+      const [sessionsRes, skillsRes, reviewRes] = await Promise.all([
         fetch(`${API_URL}/sessions`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/skill-profile`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/questions/review`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       if (sessionsRes.status === 401 || skillsRes.status === 401) {
@@ -103,12 +107,15 @@ export default function DashboardPage() {
 
       if (!sessionsRes.ok) throw new Error('Failed to load sessions');
       if (!skillsRes.ok) throw new Error('Failed to load skill profile');
+      // Ignore reviewRes failure gracefully if needed, but assuming it succeeds
+      const reviewData = reviewRes.ok ? await reviewRes.json() : [];
 
       const sessionsData = await sessionsRes.json();
       const skillsData = await skillsRes.json();
 
       setSessions(sessionsData);
       setSkills(skillsData);
+      setReviewQuestions(reviewData);
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -219,199 +226,244 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 'var(--space-6)',
-          marginBottom: 'var(--space-8)'
-        }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-8)', alignItems: 'flex-start' }}>
           
-          {/* QUICK START WIDGET */}
-          <div className="card" style={{ padding: 'var(--space-6)', gridRow: 'span 2' }}>
-            <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>🚀 Quick Start</h2>
-            <form onSubmit={handleStartSession} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {/* MAIN CONTENT COLUMN */}
+          <div style={{ flex: '3 1 600px', minWidth: 0 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: 'var(--space-6)',
+              marginBottom: 'var(--space-8)'
+            }}>
               
-              <div className="form-group">
-                <label className="form-label">Interview Field</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-2)' }}>
-                  {FIELDS.map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setField(f.id)}
-                      style={{
-                        padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                        border: `1px solid ${field === f.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                        background: field === f.id ? 'rgba(30, 64, 175, 0.1)' : 'var(--color-bg-input)',
-                        color: field === f.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                        textAlign: 'left', cursor: 'pointer', transition: 'all 150ms ease'
+              {/* QUICK START WIDGET */}
+              <div className="card" style={{ padding: 'var(--space-6)', gridRow: 'span 2' }}>
+                <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>🚀 Quick Start</h2>
+                <form onSubmit={handleStartSession} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Interview Field</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-2)' }}>
+                      {FIELDS.map(f => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setField(f.id)}
+                          style={{
+                            padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                            border: `1px solid ${field === f.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                            background: field === f.id ? 'rgba(30, 64, 175, 0.1)' : 'var(--color-bg-input)',
+                            color: field === f.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                            textAlign: 'left', cursor: 'pointer', transition: 'all 150ms ease'
+                          }}
+                        >
+                          {f.icon} {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Duration</label>
+                      <select 
+                        value={duration} 
+                        onChange={e => setDuration(Number(e.target.value))}
+                        className="form-input"
+                        style={{ padding: 'var(--space-2)' }}
+                      >
+                        {DURATIONS.map(d => <option key={d} value={d}>{d} mins</option>)}
+                      </select>
+                    </div>
+                    
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Level</label>
+                      <select 
+                        value={difficulty} 
+                        onChange={e => setDifficulty(e.target.value)}
+                        className="form-input"
+                        style={{ padding: 'var(--space-2)' }}
+                      >
+                        {DIFFICULTIES.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={!field || isStarting} className="btn btn-primary" style={{ marginTop: 'var(--space-2)' }}>
+                    {isStarting ? 'Starting...' : 'Start Session'}
+                  </button>
+                </form>
+              </div>
+
+              {/* SKILL PROFILE WIDGET */}
+              <div className="card" style={{ padding: 'var(--space-6)' }}>
+                <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>📊 Skill Analytics</h2>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent-green)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Strong Areas (≥ 7.0)</h3>
+                    {strengths.length === 0 ? <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No strong areas yet.</p> : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                        {strengths.map(s => (
+                          <div key={s.id} style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)' }}>
+                            {s.subtopic} <strong style={{ color: 'var(--color-accent-green)' }}>{s.mastery_score.toFixed(1)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Areas for Improvement (&lt; 7.0)</h3>
+                    {weaknesses.length === 0 ? <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No weak areas identified yet.</p> : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                        {weaknesses.map(s => (
+                          <div key={s.id} style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217,119,6,0.3)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)' }}>
+                            {s.subtopic} <strong style={{ color: 'var(--color-accent)' }}>{s.mastery_score.toFixed(1)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* HIGH-LEVEL STATS */}
+              <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Total Sessions</div>
+                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)' }}>{sessions.length}</div>
+                </div>
+                <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Skills Tracked</div>
+                  <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-secondary)' }}>{skills.length}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* SESSION HISTORY */}
+            <h2 style={{ fontSize: 'var(--text-2xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
+              Session History
+            </h2>
+
+            {isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Loading history...</p>}
+            {!isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No sessions completed yet.</p>}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {sessions.map((session) => {
+                const { bg, text, border } = (STATUS_COLORS[session.status] || STATUS_COLORS.active)!;
+                const isExpanded = expandedSession === session.id;
+                const report = reportsCache[session.id];
+                
+                return (
+                  <div key={session.id} className="card" style={{ padding: '0', overflow: 'hidden' }}>
+                    <div 
+                      onClick={() => toggleSessionReport(session.id)}
+                      style={{ 
+                        padding: 'var(--space-4)', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: isExpanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        transition: 'background 150ms ease'
                       }}
                     >
-                      {f.icon} {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">Duration</label>
-                  <select 
-                    value={duration} 
-                    onChange={e => setDuration(Number(e.target.value))}
-                    className="form-input"
-                    style={{ padding: 'var(--space-2)' }}
-                  >
-                    {DURATIONS.map(d => <option key={d} value={d}>{d} mins</option>)}
-                  </select>
-                </div>
-                
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">Level</label>
-                  <select 
-                    value={difficulty} 
-                    onChange={e => setDifficulty(e.target.value)}
-                    className="form-input"
-                    style={{ padding: 'var(--space-2)' }}
-                  >
-                    {DIFFICULTIES.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <button type="submit" disabled={!field || isStarting} className="btn btn-primary" style={{ marginTop: 'var(--space-2)' }}>
-                {isStarting ? 'Starting...' : 'Start Session'}
-              </button>
-            </form>
-          </div>
-
-          {/* SKILL PROFILE WIDGET */}
-          <div className="card" style={{ padding: 'var(--space-6)' }}>
-            <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)' }}>📊 Skill Analytics</h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-              <div>
-                <h3 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent-green)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Strong Areas (≥ 7.0)</h3>
-                {strengths.length === 0 ? <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No strong areas yet.</p> : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                    {strengths.map(s => (
-                      <div key={s.id} style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)' }}>
-                        {s.subtopic} <strong style={{ color: 'var(--color-accent-green)' }}>{s.mastery_score.toFixed(1)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Areas for Improvement (&lt; 7.0)</h3>
-                {weaknesses.length === 0 ? <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No weak areas identified yet.</p> : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                    {weaknesses.map(s => (
-                      <div key={s.id} style={{ background: 'rgba(217, 119, 6, 0.1)', border: '1px solid rgba(217,119,6,0.3)', padding: 'var(--space-1) var(--space-2)', borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)' }}>
-                        {s.subtopic} <strong style={{ color: 'var(--color-accent)' }}>{s.mastery_score.toFixed(1)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* HIGH-LEVEL STATS */}
-          <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-            <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Total Sessions</div>
-              <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)' }}>{sessions.length}</div>
-            </div>
-            <div className="card" style={{ flex: 1, padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Skills Tracked</div>
-              <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-secondary)' }}>{skills.length}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* SESSION HISTORY */}
-        <h2 style={{ fontSize: 'var(--text-2xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
-          Session History
-        </h2>
-
-        {isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Loading history...</p>}
-        {!isLoading && sessions.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No sessions completed yet.</p>}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {sessions.map((session) => {
-            const { bg, text, border } = (STATUS_COLORS[session.status] || STATUS_COLORS.active)!;
-            const isExpanded = expandedSession === session.id;
-            const report = reportsCache[session.id];
-            
-            return (
-              <div key={session.id} className="card" style={{ padding: '0', overflow: 'hidden' }}>
-                <div 
-                  onClick={() => toggleSessionReport(session.id)}
-                  style={{ 
-                    padding: 'var(--space-4)', 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    background: isExpanded ? 'rgba(255,255,255,0.03)' : 'transparent',
-                    transition: 'background 150ms ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                    <div style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)', minWidth: '150px' }}>
-                      {FIELD_LABELS[session.field] || session.field}
-                    </div>
-                    <div className="badge" style={{ background: bg, color: text, border: `1px solid ${border}` }}>
-                      {session.status}
-                    </div>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-                      {formatDate(session.started_at)}
-                    </div>
-                  </div>
-                  <div style={{ color: 'var(--color-text-secondary)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 200ms ease' }}>
-                    ▼
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)' }}>
-                    {loadingReportId === session.id && <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Loading detailed report...</p>}
-                    
-                    {!loadingReportId && !report && session.status !== 'completed' && (
-                      <p style={{ color: 'var(--color-accent-amber)', fontSize: 'var(--text-sm)' }}>This session is still active or paused. Complete the session to view the narrative report.</p>
-                    )}
-
-                    {!loadingReportId && report && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                          <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Summary</h4>
-                          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>
-                            {typeof report.summary === 'string' ? report.summary : `Total: ${report.summary.total}, Correct: ${report.summary.correct}, Incorrect: ${report.summary.incorrect}`}
-                          </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                        <div style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)', minWidth: '150px' }}>
+                          {FIELD_LABELS[session.field] || session.field}
                         </div>
+                        <div className="badge" style={{ background: bg, color: text, border: `1px solid ${border}` }}>
+                          {session.status}
+                        </div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
+                          {formatDate(session.started_at)}
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--color-text-secondary)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 200ms ease' }}>
+                        ▼
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)' }}>
+                        {loadingReportId === session.id && <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Loading detailed report...</p>}
                         
-                        <div>
-                          <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent-green)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Strengths Displayed</h4>
-                          <ul style={{ paddingLeft: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                            {report.strengths?.map((s, i) => <li key={i}>{s}</li>) || <li>No specific strengths noted.</li>}
-                          </ul>
-                        </div>
+                        {!loadingReportId && !report && session.status !== 'completed' && (
+                          <p style={{ color: 'var(--color-accent-amber)', fontSize: 'var(--text-sm)' }}>This session is still active or paused. Complete the session to view the narrative report.</p>
+                        )}
 
-                        <div>
-                          <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Improvement Areas</h4>
-                          <ul style={{ paddingLeft: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                            {report.weaknesses?.map((w, i) => <li key={i}>{w}</li>) || <li>No major weaknesses noted.</li>}
-                          </ul>
-                        </div>
+                        {!loadingReportId && report && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                              <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Summary</h4>
+                              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>
+                                {typeof report.summary === 'string' ? report.summary : `Total: ${report.summary.total}, Correct: ${report.summary.correct}, Incorrect: ${report.summary.incorrect}`}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent-green)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Strengths Displayed</h4>
+                              <ul style={{ paddingLeft: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                                {report.strengths?.map((s, i) => <li key={i}>{s}</li>) || <li>No specific strengths noted.</li>}
+                              </ul>
+                            </div>
+
+                            <div>
+                              <h4 style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>Improvement Areas</h4>
+                              <ul style={{ paddingLeft: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                                {report.weaknesses?.map((w, i) => <li key={i}>{w}</li>) || <li>No major weaknesses noted.</li>}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* RIGHT SIDEBAR - REVIEW QUESTIONS */}
+          <aside style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', position: 'sticky', top: 'var(--space-6)' }}>
+            <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
+              Requires Review
+            </h2>
+            {isLoading && reviewQuestions.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Loading...</p>
+            ) : reviewQuestions.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>No questions need review right now.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {reviewQuestions.map(rq => (
+                  <div key={rq.answer_id} className="card" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                      <span className="badge" style={{ 
+                        background: 'rgba(217, 119, 6, 0.1)', 
+                        color: 'var(--color-accent)', 
+                        border: '1px solid rgba(217,119,6,0.3)',
+                        textTransform: 'uppercase',
+                        fontSize: '10px'
+                      }}>
+                        {rq.classification}
+                      </span>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                        {new Date(rq.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)', color: 'var(--color-primary)', marginBottom: 'var(--space-2)' }}>
+                      {rq.question.subtopic}
+                    </h3>
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {rq.question.prompt}
+                    </p>
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            )}
+          </aside>
         </div>
       </div>
     </AppLayout>

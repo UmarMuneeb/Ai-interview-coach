@@ -169,3 +169,12 @@ Status: done
   Done when: Export a method that queries skill_profile table for a user, returns topics/subtopics sorted by mastery_score ascending (lowest = weakest). Include only topics with mastery_score < 7.0. Used by sessions module for adaptive targeting.
   Risk: normal
   Completed: 2026-07-04
+
+## Phase 10: Dashboard Enhancements
+Status: in-progress
+
+- [x] Step: Implement Review Sidebar (Top 20 Incorrect Questions)
+  Module: apps/api/src/questions, apps/web/app/dashboard
+  Done when: Backend has an endpoint to fetch up to 20 questions the user answered incorrectly/partially. Dashboard displays them in a right sidebar.
+  Risk: normal
+  Completed: 2026-07-05

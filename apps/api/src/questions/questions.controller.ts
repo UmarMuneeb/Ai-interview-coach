@@ -16,6 +16,11 @@ export class QuestionsController {
     return this.questionsService.getMockQuestion();
   }
 
+  @Get('review')
+  async getQuestionsForReview(@Request() req: any) {
+    return this.questionsService.getQuestionsForReview(req.user.userId);
+  }
+
   /**
    * Get the next question for a session, with history tracking and LLM fallback.
    * Query params: topic, subtopic, difficulty, sessionId (all optional)
