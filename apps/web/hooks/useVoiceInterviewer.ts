@@ -6,9 +6,23 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const DIFFICULTY_LABELS: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 
 interface QuestionBrief {
+  id: string;
   prompt: string;
   topic: string;
+  subtopic: string;
   difficulty: number;
+}
+
+export interface QuestionAdvancedPayload {
+  nextQuestion: QuestionBrief | null;
+  interviewComplete: boolean;
+}
+
+export interface AnswerClassifiedPayload {
+  classification: string;
+  confidence: number;
+  reasoning: string;
+  questionId: string;
 }
 
 export interface VoiceSessionConfig {
@@ -19,7 +33,12 @@ export interface VoiceSessionConfig {
   firstQuestion?: string;
 }
 
-export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
+export function useVoiceInterviewer(
+  sessionId: string,
+  initialPrompt?: string,
+  onQuestionAdvanced?: (payload: QuestionAdvancedPayload) => void,
+  onAnswerClassified?: (payload: AnswerClassifiedPayload) => void,
+) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -149,6 +168,14 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
       }
     });
 
+    newSocket.on('question_advanced', (data: QuestionAdvancedPayload) => {
+      if (onQuestionAdvanced) onQuestionAdvanced(data);
+    });
+
+    newSocket.on('answer_classified', (data: AnswerClassifiedPayload) => {
+      if (onAnswerClassified) onAnswerClassified(data);
+    });
+
     currentSessionId.current = sessionId;
     socketRef.current = newSocket;
     setSocket(newSocket);
@@ -156,7 +183,7 @@ export function useVoiceInterviewer(sessionId: string, initialPrompt?: string) {
     return () => {
       newSocket.disconnect();
     };
-  }, [sessionId, decodeAudio, playNextChunk]);
+  }, [sessionId, decodeAudio, playNextChunk, onQuestionAdvanced, onAnswerClassified]);
 
   // ── Start voice session ───────────────────────────────────────────────
   const startVoiceSession = useCallback(

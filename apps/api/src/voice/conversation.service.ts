@@ -7,8 +7,10 @@ interface Message {
 }
 
 interface QuestionBrief {
+  id: string;
   prompt: string;
   topic: string;
+  subtopic: string;
   difficulty: number;
 }
 
@@ -19,11 +21,16 @@ interface ConversationState {
   history: Message[];
   turnCount: number;
   currentDifficulty: number; // 1=Easy, 2=Medium, 3=Hard
-  consecutiveCorrect: number;
   phase: 'intro' | 'interview' | 'wrap-up';
   currentQuestion: string | null;
   allQuestions: QuestionBrief[];
   questionIndex: number;
+  /** True once the interviewer has given ONE drill-down on the current question */
+  drillUsed: boolean;
+  /** IDs of questions already answered/drilled — for dedup on re-start */
+  answeredQuestionIds: string[];
+  /** Signals that the interview questions are exhausted — gateway can wrap up */
+  interviewComplete: boolean;
 }
 
 // Template — placeholders get replaced at runtime
@@ -49,18 +56,23 @@ STRICT RULES:
 2. NEVER ask more than one question per turn.
 3. Never say "Correct!", "That is correct!", "Great job!" robotically. Use natural language.
 4. Never read a question word-for-word — paraphrase naturally into conversation.
-5. After EVERY answer, ask a follow-up to dig deeper before moving to the next question.
-6. Give encouraging nudges when stuck: "Maybe think about it from the angle of X..."
-7. Use natural transitions: "Okay, let's shift gears..." / "Building on what you just said..."
+5. DRILL POLICY — exactly one drill per question, no more:
+   - If the candidate answers INCORRECTLY or partially, give ONE brief correction or hint ("Actually, the key point here is X…").
+   - After giving that one correction, say something like "Okay, let's move on." and transition to the NEXT question in your list.
+   - Do NOT drill the same question again after you have already given the correction once.
+   - If the candidate answered correctly, acknowledge it naturally and move straight to the next question.
+6. Use natural transitions: "Okay, let's shift gears..." / "Building on what you just said..."
+7. When you have covered ALL questions in your list, say exactly: "That covers all the questions I had prepared." and wrap up warmly.
 
 CONVERSATION FLOW:
 PHASE intro: Greet warmly. Mention the role. Ask exactly ONE casual warm-up question (e.g., "What have you been working on recently?"). DO NOT ask any technical questions from your list yet. Wait for the user to answer.
-PHASE interview: Work through your prepared question list. Follow the difficulty progression. Always follow up before moving on.
+PHASE interview: Work through your prepared question list in order. Follow the drill policy above strictly.
 PHASE wrap-up: Close warmly, mention 1–2 things they did well specifically.
 
 CURRENT STATE:
 Phase: {{PHASE}}
 Turn: {{TURN}}
+Drill already used on current question: {{DRILL_USED}}
 Next question to work toward (ONLY if phase is interview): {{CURRENT_QUESTION}}`;
 
 @Injectable()
@@ -90,11 +102,13 @@ export class ConversationService {
       history: [],
       turnCount: 0,
       currentDifficulty: difficulty,
-      consecutiveCorrect: 0,
       phase: 'intro',
       currentQuestion: firstQuestion,
       allQuestions: questions,
       questionIndex: 0,
+      drillUsed: false,
+      answeredQuestionIds: [],
+      interviewComplete: false,
     };
     this.conversations.set(socketId, state);
 
@@ -120,51 +134,61 @@ export class ConversationService {
 
   /**
    * Process a user's spoken turn. Returns the AI's response text.
+   * wasCorrect is set by the gateway after submitAnswer classification comes back.
    */
   async processTurn(
     socketId: string,
     userTranscript: string,
-    currentQuestion?: string,
     wasCorrect?: boolean,
-  ): Promise<string> {
+  ): Promise<{ text: string; shouldAdvance: boolean; interviewComplete: boolean }> {
     const state = this.conversations.get(socketId);
     if (!state) {
       throw new Error('No active conversation for this socket');
     }
 
-    // Update current question if provided
-    if (currentQuestion) {
-      state.currentQuestion = currentQuestion;
-    }
-
-    // After intro phase (turn 2), move to interview phase
+    // After intro phase (turn 2+), move to interview phase
     if (state.phase === 'intro' && state.turnCount >= 2) {
       state.phase = 'interview';
       state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
     }
 
-    // Track difficulty escalation
-    if (wasCorrect !== undefined) {
+    // Determine whether to advance question based on answer correctness and drill policy
+    let shouldAdvance = false;
+
+    if (state.phase === 'interview' && wasCorrect !== undefined) {
       if (wasCorrect) {
-        state.consecutiveCorrect++;
-        if (state.consecutiveCorrect >= 2 && state.currentDifficulty < 3) {
-          state.currentDifficulty++;
-          state.consecutiveCorrect = 0;
-          state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
-        }
+        // Correct answer → advance immediately
+        shouldAdvance = true;
       } else {
-        state.consecutiveCorrect = 0;
+        // Incorrect answer
+        if (state.drillUsed) {
+          // Already drilled once → advance regardless
+          shouldAdvance = true;
+        } else {
+          // First wrong answer → mark drill used, do NOT advance yet (Alex will correct)
+          state.drillUsed = true;
+        }
       }
     }
 
-    // Advance question index after follow-up (every 2 turns in interview)
-    if (state.phase === 'interview' && state.turnCount % 2 === 0 && state.allQuestions.length > 0) {
-      state.questionIndex = Math.min(state.questionIndex + 1, state.allQuestions.length - 1);
-      const nextQ = state.allQuestions[state.questionIndex];
-      if (nextQ) {
+    // If advancing, move the question index forward
+    if (shouldAdvance && state.phase === 'interview') {
+      const currentQId = state.allQuestions[state.questionIndex]?.id;
+      if (currentQId) state.answeredQuestionIds.push(currentQId);
+
+      state.questionIndex++;
+      state.drillUsed = false; // reset drill for the new question
+
+      if (state.questionIndex >= state.allQuestions.length) {
+        // All questions exhausted
+        state.phase = 'wrap-up';
+        state.interviewComplete = true;
+        state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
+      } else {
+        const nextQ = state.allQuestions[state.questionIndex];
         state.currentQuestion = nextQ.prompt;
+        state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
       }
-      state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
     }
 
     state.history.push({ role: 'user', content: userTranscript });
@@ -184,7 +208,7 @@ export class ConversationService {
       state.history = [state.history[0], ...state.history.slice(-20)];
     }
 
-    return aiText;
+    return { text: aiText, shouldAdvance, interviewComplete: state.interviewComplete };
   }
 
   /**
@@ -221,6 +245,32 @@ export class ConversationService {
     return this.conversations.get(socketId)?.currentDifficulty ?? 1;
   }
 
+  /** Returns IDs of questions that have already been answered in this conversation */
+  getAnsweredQuestionIds(socketId: string): string[] {
+    return this.conversations.get(socketId)?.answeredQuestionIds ?? [];
+  }
+
+  /** Returns true if all prepared questions have been covered */
+  isInterviewComplete(socketId: string): boolean {
+    return this.conversations.get(socketId)?.interviewComplete ?? false;
+  }
+
+  /**
+   * Called by the gateway once a new question is fetched from the DB
+   * (after the current question is advanced). Updates the question queue
+   * in-memory so Alex has the fresh question context.
+   */
+  pushNextQuestion(socketId: string, question: QuestionBrief): void {
+    const state = this.conversations.get(socketId);
+    if (!state) return;
+    state.allQuestions.push(question);
+    // If we just ran out and this is the new question, update currentQuestion
+    if (state.questionIndex < state.allQuestions.length) {
+      state.currentQuestion = state.allQuestions[state.questionIndex].prompt;
+      state.history[0] = { role: 'system', content: this.buildSystemPrompt(state) };
+    }
+  }
+
   private buildSystemPrompt(state: ConversationState): string {
     const difficultyLabels: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 
@@ -239,6 +289,7 @@ export class ConversationService {
       .replace('{{QUESTION_LIST}}', questionList)
       .replace('{{PHASE}}', state.phase)
       .replace('{{TURN}}', `${state.turnCount}`)
+      .replace('{{DRILL_USED}}', state.drillUsed ? 'YES — do NOT drill again, move on after responding' : 'NO')
       .replace('{{CURRENT_QUESTION}}', state.currentQuestion || 'Continue naturally');
   }
 }

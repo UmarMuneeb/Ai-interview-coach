@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '../../components/AppLayout';
-import { useVoiceInterviewer } from '../../../hooks/useVoiceInterviewer';
+import { useVoiceInterviewer, QuestionAdvancedPayload, AnswerClassifiedPayload } from '../../../hooks/useVoiceInterviewer';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -56,11 +56,33 @@ export default function InterviewPage() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [isEndingSession, setIsEndingSession] = useState(false);
+  const [interviewComplete, setInterviewComplete] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Stable callbacks so useVoiceInterviewer hook doesn't re-init on every render
+  const handleQuestionAdvanced = useCallback((payload: QuestionAdvancedPayload) => {
+    if (payload.interviewComplete) {
+      setInterviewComplete(true);
+    } else if (payload.nextQuestion) {
+      setQuestion(payload.nextQuestion as any);
+      setTranscript('');
+      setLastResult(null);
+    }
+  }, []);
+
+  const handleAnswerClassified = useCallback((payload: AnswerClassifiedPayload) => {
+    setLastResult(prev => prev
+      ? { ...prev, answer: { classification: payload.classification as any, confidence: payload.confidence, reasoning: payload.reasoning } }
+      : { answer: { classification: payload.classification as any, confidence: payload.confidence, reasoning: payload.reasoning }, nextQuestion: question! }
+    );
+    setAnsweredCount(c => c + 1);
+  }, [question]);
 
   const voice = useVoiceInterviewer(
     sessionId,
-    question?.prompt
+    question?.prompt,
+    handleQuestionAdvanced,
+    handleAnswerClassified,
   );
 
   const getToken = useCallback(() => {
@@ -248,7 +270,7 @@ export default function InterviewPage() {
                  field: sessionField,
                  role: sessionField,
                  difficulty: question?.difficulty || 1,
-                 questions: allQuestions.map(q => ({ prompt: q.prompt, topic: q.topic, difficulty: q.difficulty })),
+                 questions: allQuestions.map(q => ({ id: q.id, prompt: q.prompt, topic: q.topic, subtopic: q.subtopic || '', difficulty: q.difficulty })),
                  firstQuestion: question?.prompt,
                });
             }}>

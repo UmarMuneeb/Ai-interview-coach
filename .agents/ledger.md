@@ -207,3 +207,21 @@ Status: done
   Done when: Login subtitle is punchy human copy. Tab switching auto-focuses email field. Background blobs have a slow floating animation.
   Risk: normal
 
+
+## Phase 12: Voice Interview Loop Correctness
+Status: in-progress
+
+- [ ] Step: Fix conversation.service.ts — enforce 1-drill-max state machine and correct question advancement
+  Module: apps/api/src/voice/conversation.service.ts
+  Done when: ConversationState has drillUsed boolean; system prompt rule 5 enforces 1-drill-max and move-on; processTurn advances questionIndex past the last question and sets phase to wrap-up instead of clamping; buildSystemPrompt reflects the new rules.
+  Risk: normal
+
+- [ ] Step: Wire voice.gateway.ts to SessionsService — persist every voice answer to DB
+  Module: apps/api/src/voice/ (gateway.ts + module.ts)
+  Done when: VoiceGateway injects SessionsService; handleVoiceTurn calls sessionsService.submitAnswer() after every turn and emits question_advanced {nextQuestion, classification} event to the client; voice.module.ts imports SessionsModule and QuestionsModule.
+  Risk: high
+
+- [ ] Step: Update interview page to consume question_advanced socket event
+  Module: apps/web/app/interview/[sessionId]/page.tsx
+  Done when: Page listens for question_advanced event on the voice socket; on receipt, updates the question state with nextQuestion; no extra manual fetchQuestion call needed between voice turns.
+  Risk: normal

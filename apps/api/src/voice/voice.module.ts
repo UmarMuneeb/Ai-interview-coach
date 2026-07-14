@@ -3,9 +3,11 @@ import { AuthModule } from '../auth/auth.module';
 import { VoiceGateway } from './voice.gateway';
 import { ConversationService } from './conversation.service';
 import { ProviderRouterModule } from '../provider-router/provider-router.module';
+import { SessionsModule } from '../sessions/sessions.module';
+import { QuestionsModule } from '../questions/questions.module';
 
 @Module({
-  imports: [AuthModule, ProviderRouterModule],
+  imports: [AuthModule, ProviderRouterModule, SessionsModule, QuestionsModule],
   providers: [VoiceGateway, ConversationService],
 })
 export class VoiceModule {}
