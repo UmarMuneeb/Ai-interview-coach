@@ -20,3 +20,57 @@ Full UI audit performed across all 5 frontend files using ui-tester, emil-design
 **dashboard/page.tsx**: Fixed page title from 'Analytics Dashboard' to 'Practice Dashboard'. Fixed subtitle copy. Removed Quick Start emoji from section header. Improved field selection buttons with hover transitions. Updated stats cards with icons and contextual sub-labels. Added skeleton loading placeholders. Added proper empty state for new users with illustration and CTA. Added hover lift effect to Review Sidebar cards. Updated empty review message to human copy.
 
 **interview/[sessionId]/page.tsx**: Humanized ready screen copy. Replaced emoji mic (??) with SVG microphone icon. Replaced emoji status strings with CSS-animated bars. Added short-answer warning hint when transcript < 50 chars. Added aria-label to mic button.
+
+---
+
+## Phase 12: Voice Interview Loop Correctness
+Completed: 2026-07-14
+
+### What was broken (root causes)
+Three distinct bugs caused the 30-minute drill loop and missing DB saves:
+
+1. **Infinite drill loop** — conversation.service.ts used Math.min(questionIndex + 1, length - 1) which clamped at the last question forever. The system prompt also told Alex to "ask a follow-up after EVERY answer" with no hard exit rule.
+2. **Voice answers never saved to DB** — VoiceGateway.handleVoiceTurn() only called conversationService.processTurn(). It never called sessionsService.submitAnswer(), so all answers were lost on socket disconnect.
+3. **Same first question every session** — No session-specific seen-ID exclusion before session start.
+
+### What was fixed
+
+**pps/api/src/voice/conversation.service.ts** (rewrite)
+- Added drillUsed: boolean, nsweredQuestionIds: string[], interviewComplete: boolean to ConversationState.
+- processTurn() now returns { text, shouldAdvance, interviewComplete } instead of a plain string.
+- Drill policy: first wrong answer ? set drillUsed = true, do NOT advance. Second wrong (or correct) ? advance. Reset drillUsed on every question advance.
+- When questionIndex >= allQuestions.length, set phase = 'wrap-up' and interviewComplete = true (no more clamping).
+- System prompt updated with strict rule 5: 1-drill-max + mandatory "Okay, let's move on" after drill.
+- Added {{DRILL_USED}} placeholder to prompt so Alex is always aware of drill state.
+- New public helpers: getAnsweredQuestionIds(), isInterviewComplete(), pushNextQuestion().
+
+**pps/api/src/voice/voice.gateway.ts** (rewrite)
+- Added GatewaySocketState map (currentQuestion, sessionId, userId, ield) per socket.
+- Injected SessionsService and QuestionsService.
+- handleVoiceTurn() now: (1) calls sessionsService.submitAnswer() to persist answer + classify; (2) emits nswer_classified event to client; (3) passes wasCorrect to conversationService.processTurn(); (4) on shouldAdvance, emits question_advanced with nextQuestion from DB (or fetches fresh from questionsService.getNextQuestion() if submitAnswer didn't return one).
+
+**pps/api/src/voice/voice.module.ts**
+- Added SessionsModule and QuestionsModule to imports so gateway can inject their services.
+
+**pps/web/hooks/useVoiceInterviewer.ts**
+- Extended QuestionBrief interface with id and subtopic fields.
+- Added onQuestionAdvanced and onAnswerClassified optional callback params.
+- Registers question_advanced and nswer_classified socket event listeners.
+- Exported QuestionAdvancedPayload and AnswerClassifiedPayload types.
+
+**pps/web/app/interview/[sessionId]/page.tsx**
+- Added handleQuestionAdvanced and handleAnswerClassified stable useCallback handlers.
+- Wired both callbacks into useVoiceInterviewer.
+- handleQuestionAdvanced updates question state in-place when the gateway emits question_advanced.
+- Fixed two llQuestions.map() calls to include id and subtopic fields (TypeScript build error).
+- Added interviewComplete state variable for session wrap-up signal.
+
+### Tests
+- pps/api/src/voice/conversation.service.spec.ts — 12 tests, all passing.
+- Covers: greeting, phase transition, drill policy (first wrong / second wrong / correct), question exhaustion/interviewComplete, answeredQuestionIds accumulation, pushNextQuestion, cleanup.
+
+### Build verification
+- pps/api: 
+px nest build — ? clean
+- pps/web: 
+pm run build — ? clean

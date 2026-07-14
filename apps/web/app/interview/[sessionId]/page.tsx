@@ -329,7 +329,7 @@ export default function InterviewPage() {
                 field: sessionField,
                 role: sessionField,
                 difficulty: question?.difficulty || 1,
-                questions: allQuestions.map(q => ({ prompt: q.prompt, topic: q.topic, difficulty: q.difficulty })),
+                questions: allQuestions.map(q => ({ id: q.id, prompt: q.prompt, topic: q.topic, subtopic: q.subtopic || '', difficulty: q.difficulty })),
                 firstQuestion: question?.prompt,
               })} style={{ fontSize: 'var(--text-sm)' }}>
                 🎙️ Switch to Voice
